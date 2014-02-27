@@ -55,6 +55,7 @@ setwd(paste0(baseDir, 'GitHub/projects/temperatureProject/'))
 
 reRunBP <- T
 
+# Will need to specify date of creation for this to work:
 if( !reRunBP ) {
   load(file=paste(baseDir, 'GitHub/projects/temperatureProject/e_', sourceList, '.RData',sep=''))
   load(file=paste(baseDir, 'GitHub/projects/temperatureProject/et_', sourceList, '.RData',sep=''))
@@ -65,6 +66,7 @@ if( !reRunBP ) {
 ```{r Make graphs?}
 # settings variables
 makeSpringFallGraphs <- T
+indexAbnormalSummerGraphs <- F
 
 #Creates folders for graphs if they don't exist:
 #-----------------------------------------------
@@ -411,10 +413,11 @@ for (j in 1:nSites){
       plot(e1$dOY[e1$year %in% year], e1$temp[e1$year %in% year],ylim=c(-5,25),xlim=c(0,366))
        
       if(exists('out')){
-              
-        Sigma <- summary(out)$sigma
         
-        if( out$coeff[2] < 0 | out$coeff[3] > 0 ){
+        breaks$risingTemp  [breaks$year == year & breaks$site == siteList[j]] <- out$coeff[2]
+        breaks$fallingTemp [breaks$year == year & breaks$site == siteList[j]] <- out$coeff[3]
+        
+        if( out$coeff[2] < 0 | out$coeff[3] > 0 & indexAbnormalSummerGraphs){
           mark <- data.frame(siteList[j], year)
           names(mark) <- c('site', 'year')
           abnormalSiteYears <- rbind(abnormalSiteYears, mark)       
@@ -427,14 +430,13 @@ for (j in 1:nSites){
         
           breaks$summerBP        [breaks$year == year & breaks$site == siteList[j]] <- summary(out)$psi[1,2]
           breaks$summerBPComplete[breaks$year == year & breaks$site == siteList[j]] <- TRUE
-          breaks$summerBPSigma   [breaks$year == year & breaks$site == siteList[j]] <- Sigma
           
           plot(out,add=T,link=FALSE,lwd=2,col=2:3, lty=c(1),ylim=c(-5,25),xlim=c(0,366))  #Plot fits
           lines(out,col=2,pch=19,bottom=FALSE,lwd=2) #Plot peak point
         }
       }# End 'out' loop
     
-      title(main=paste(e1$site[1],"_",year, "_", Sigma))
+      title(main=paste(e1$site[1],"_",year))
       dev.off()
       
     }# End numBefore/After if statement
@@ -450,19 +452,43 @@ et <- merge( x=e, y=breaks, by=c('year','site'),all.x=T)
 # need to sort for plotting pred
 segDF <- segDF[order(segDF$site,segDF$year,segDF$dOY),]
 
-#Abnormal sites highlighted by the segmented regression:
-abnormalSiteYears
+
+
+#Histogram of rising and falling limbs of segmented regression used in summer BP estimation.
+gRisingTemp  <- ggplot( breaks) + 
+  geom_histogram(aes(risingTemp ), binwidth = .01) + 
+  theme(strip.text.x = element_text(size=6)) +
+  scale_x_continuous(breaks = c(seq(from = -2, to = 2, by = .2)),
+                     labels = c(seq(from = -2, to = 2, by = .2))) +
+  ggtitle('Rising limb of seg-regression for SummerBP')
+
+gFallingTemp <- ggplot( breaks) + 
+  geom_histogram(aes(fallingTemp), binwidth = .01) + 
+  theme(strip.text.x = element_text(size=6)) +
+  scale_x_continuous(breaks = c(seq(from = -3, to = 2, by = .2)),
+                     labels = c(seq(from = -3, to = 2, by = .2))) +
+  ggtitle('Falling limb of seg-regression for SummerBP')
+
+gHist <- arrangeGrob( gRisingTemp, gFallingTemp, ncol=1)
+
+ggsave(plot=gHist,file=paste0(subGraphsDir,'_slopesHistogram', sourceList,'.png'),dpi=300,width=6,height=8, units='in', scale=2)
+
 ```
 
 ```{r Index abnormal plots as defined by the segmented regression.}
 
-setwd(paste0(subGraphsDir, '/summerBP/'))
+if (indexAbnormalSummerGraphs) {
+  
+  #Abnormal sites highlighted by the segmented regression:
+  abnormalSiteYears
+  
+  setwd(paste0(subGraphsDir, '/summerBP/'))
 
-abnormalPlots <- paste0('summerBP_', abnormalSiteYears$site, '_' , abnormalSiteYears$year)
+  abnormalPlots <- paste0('summerBP_', abnormalSiteYears$site, '_' , abnormalSiteYears$year)
 
-sapply(c(2:length(abnormalPlots)),FUN = function(x){
-  file.rename(from = paste0(abnormalPlots[x],'.png'), to = paste0(subGraphsDir,'/problemSites/', abnormalPlots[x],'.png'))})
-
+  sapply(c(2:length(abnormalPlots)),FUN = function(x){
+    file.rename(from = paste0(abnormalPlots[x],'.png'), to = paste0(subGraphsDir,'/problemSites/', abnormalPlots[x],'.png'))})
+}
 ```
 
 ```{r set bps}
