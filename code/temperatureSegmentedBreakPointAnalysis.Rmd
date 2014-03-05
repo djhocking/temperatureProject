@@ -32,20 +32,21 @@ source(paste0(baseDir, 'GitHub/projects/temperatureProject/code/temperatureModel
 Which agencies do you want to pull data from?
 ```{r Choose data source}
 
-CTDEP  <- T
+CTDEP  <- F
 MAFW   <- F
 MAUSGS <- F
 NHFG   <- F
 NHDES  <- F
 MEDMR  <- F
-MTUSGS <- F
+MTUSGSYellowstone <- F
+MTUSGSGlacier <- F
 
-sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   MTUSGS )
-sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'MTUSGS')
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   MTUSGSYellowstone, MTUSGSGlacier)
+sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'MTUSGSYellowstone', 'MTUSGSGlacier')
   
 dataSource <- sourceNames[sourceChoice == T]
 
-sourceList <- paste0(paste0(dataSource, collapse = '_'), '  ', Sys.Date())
+sourceList <- paste0(paste0(dataSource, collapse = '_'), '_', Sys.Date())
 
 setwd(paste0(baseDir, 'GitHub/projects/temperatureProject/'))
 
@@ -70,15 +71,18 @@ indexAbnormalSummerGraphs <- F
 
 #Creates folders for graphs if they don't exist:
 #-----------------------------------------------
-subGraphsDir <- paste0(graphsDir, sourceList)
+subGraphsDir  <- paste0(graphsDir,  sourceList)
+subDataOutDir <- paste0(dataOutDir, sourceList)
 
-if (file.exists(subGraphsDir)){
-  setwd(file.path(subGraphsDir))
-} else {
+if (!file.exists(subGraphsDir)){
   dir.create(file.path(paste0(subGraphsDir)))
   dir.create(file.path(paste0(subGraphsDir, '/summerBP')))
   dir.create(file.path(paste0(subGraphsDir, '/springFallBP')))
   dir.create(file.path(paste0(subGraphsDir, '/problemSites')))
+}
+  
+if (!file.exists(subDataOutDir)){ 
+  dir.create(file.path(paste0(subDataOutDir)))
 }
 
 ```
@@ -471,7 +475,7 @@ gFallingTemp <- ggplot( breaks) +
 
 gHist <- arrangeGrob( gRisingTemp, gFallingTemp, ncol=1)
 
-ggsave(plot=gHist,file=paste0(subGraphsDir,'_slopesHistogram', sourceList,'.png'),dpi=300,width=6,height=8, units='in', scale=2)
+ggsave(plot=gHist,file=paste0(subGraphsDir,'/segRegSlopesHistogram.png'),dpi=300,width=6,height=8, units='in', scale=2)
 
 ```
 
@@ -672,7 +676,7 @@ if (nrow(temp) > 0 ){
 
 ```{r save e}
 
-  save(e, file=paste(dataOutDir, '/e', sourceList, '.RData',sep=''))
-  save(et,segDF,slopes, file=paste(dataOutDir, '/et', sourceList, '.RData',sep=''))
+  save(e, file=paste0(dataOutDir, 'e_', sourceList, '.RData'))
+  save(et,segDF,slopes, file=paste0(dataOutDir, 'et_', sourceList, '.RData'))
 
 ```

@@ -1,0 +1,24 @@
+```{r Load Data & User specifications.}
+rm(list=ls())
+
+load("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/StreamTempData_MASTER.RData")
+model <- master.data
+
+setwd('C:/KPONEIL/USGS/Stream Temperature/Raw Stream Temperature Data/MT')
+
+#Enter where the data came from:
+Agency <- 'USGSMT' # USGS Montana
+
+rawData <- read.csv('Breakpoint_CCE.csv')
+
+rawData$agency  <- Agency
+rawData$AgencyID <- rawData$site
+rawData$site <- paste0(Agency, '_', rawData$site)
+
+rawData <- rawData[, - which(names(rawData) %in% c('month', 'day'))]
+
+master.data <- rawData
+
+save(master.data, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/StreamTempData_", Agency, "sites.RData"))
+
+```

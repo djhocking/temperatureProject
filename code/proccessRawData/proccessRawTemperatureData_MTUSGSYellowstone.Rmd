@@ -1,0 +1,79 @@
+```{r Load data}
+rm(list=ls())
+
+baseDir <- 'C:/KPONEIL/'
+dataInDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataIn/')
+
+load(paste0(dataInDir, 'CTDEP/streamTempData_CTDEP.RData'))
+model <- masterData
+
+setwd('C:/KPONEIL/SourceData/Raw/streamTemperature/MT')
+
+#Enter where the data came from:
+Agency <- 'MTUSGSYellowstone'
+
+rawData <- read.csv('alchokhachy_sites_BOZEMAN.csv')
+```
+
+```{r Make source specific alterations. Basic Input}
+
+rawData$date <- as.Date(rawData$date, format = "%Y-%m-%d")
+rawData$year <- as.numeric(strftime(rawData$date, '%Y'))
+rawData$dOY <- as.numeric(strftime(rawData$date, '%j'))
+
+rawData$agency  <- Agency
+rawData$AgencyID <- rawData$Stream
+rawData$site <- paste0(Agency, '_', rawData$AgencyID)
+
+rawData$airTemp <- rawData$airt
+
+tempFrame <- rawData[, c('site', 'year', 'dOY', 'date', 'AgencyID', 'agency', 'temp', 'airTemp')]
+```
+
+```{r Include Daymet}
+
+tempFrame <- rawData[, c('site', 'year', 'dOY', 'date', 'AgencyID', 'agency', 'temp', 'airTemp', 'daylength', 'srad', 'swe', 'vpress', 'precip')]
+
+names(tempFrame) <- c('site', 'year', 'dOY', 'date', 'AgencyID', 'agency', 'temp', 'airTemp', 'dayl', 'srad', 'swe', 'vp', 'prcp')
+
+```
+
+```{r Loop through all sites and fill gaps with NAs}
+Sites <- unique(tempFrame$site)
+
+for ( i in 1:length(Sites) ){
+
+  expData <- tempFrame[tempFrame$site == Sites[i],]
+    
+  start.date <- min(expData$date)
+  end.date   <- max(expData$date)  
+  
+  Record <- data.frame(seq(from=as.Date(start.date),to=as.Date(end.date),by="day"))
+  names(Record) <- "date"
+  Record$year <- as.numeric(strftime(Record$date, '%Y'))
+  Record$dOY <- as.numeric(strftime(Record$date, '%j'))
+  
+  newRecord <- merge(Record, expData, by = c('date', 'dOY', 'year'), all.x = T, all.y = F, sort = F)
+  
+  #Fill in blanks:
+  newRecord$site       <- expData$site[1]
+  newRecord$AgencyID   <- expData$AgencyID[1]
+  newRecord$agency     <- expData$agency[1]
+  #newRecord$Latitude   <- expData$Latitude[1]
+  #newRecord$Longitude <- expData$Longitude[1]
+
+  if(i == 1) { masterData <- newRecord} else ( masterData <- rbind(masterData, newRecord))
+
+}
+```
+
+```{r Save the data}
+#save(masterData, file = paste0(dataInDir, Agency, '/streamTempData_', Agency,'.RData'))
+
+
+read.me <- "The following columns are all missing from 'masterData': tmin, tmax, Latitude, & Longitude "
+save(masterData, read.me, file = paste0(dataInDir, Agency, '/streamTempSitesObservedClimateData_', Agency,'.RData'))
+
+
+
+```

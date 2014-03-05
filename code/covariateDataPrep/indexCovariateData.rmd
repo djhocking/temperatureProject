@@ -1,0 +1,227 @@
+```{r Load Libraries}
+
+rm(list=ls())
+library(sp)
+library(rgdal)
+library(rgeos)
+library(maptools)
+#library(chron)
+```
+
+```{r Read-in & prep data}
+
+#NHDPlus Data:
+proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
+Catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/NENY_NHDCatchment.shp", proj4string=CRS(proj4.NHD))
+
+#Site Location Data:
+setwd("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis")
+load("StreamTempData_MEDMRsites.RData")
+
+sitelist<- unique(master.data$site)
+
+for ( i in 1:length(sitelist)){
+
+  Lat <- unique(master.data$Latitude[which(master.data$site == sitelist[i])])
+  Lon <- unique(master.data$Longitude[which(master.data$site == sitelist[i])])
+  
+  temp <- data.frame(sitelist[i], Lat, Lon)
+  names(temp) <- c('site', 'Latitude', 'Longitude')
+  if ( i ==1) {Sites <- temp} else ( Sites <- rbind(Sites, temp))
+}
+
+#Master covariate data:
+load("C:/KPONEIL/USGS/GIS/Covariate Stats/NENY_CovariateData_2014-01-23.RData")
+
+#names(UpstreamStats)
+
+fields <- c("FEATUREID", "ReachLengthKM", "Forest", "Herbacious", "Agriculture", "HerbaciousOrAgriculture", "Developed", 
+              "DevelopedNotOpen", "Wetland", "WetlandOrWater", "Water", "UndevelopedForest", "Impervious", "AnnualTmaxC", "AnnualTminC", "WinterPrcpMM", "AnnualPrcpMM", "AtmDepositionNO3", "AtmDepositionSO4", "BasinSlopeDEG", "DrainageClass", "HydrologicGroupA", "HydrologicGroupAB", "HydrologicGroupCD", "HydrologicGroupD4", "HydrologicGroupD1", "SurficialCoarseC", "PercentSandy", "TotDASqKM", "ReachElevationM", "BasinElevationM", "SummerPrcpMM", "ReachSlopePCNT", "BasinSlopePCNT", "JanPrcpMM", "FebPrcpMM", "MarPrcpMM", "AprPrcpMM", "MayPrcpMM", "JunPrcpMM", "JulPrcpMM", "AugPrcpMM", "SepPrcpMM", "OctPrcpMM", "NovPrcpMM", "DecPrcpMM", "CONUSOpenWater", "CONUSWetland", "TNC_DamCount", "ImpoundmentsOpenSqKM", "ImpoundmentsAllSqKM", "WetlandsOpenSqKM", "WetlandsAllSqKM", "PercentImpoundedOpen", "PercentImpoundedAll", "OffChannelOpenSqKM", "OffChannelAllSqKM")
+
+
+SelectUpstreamStats <- UpstreamStats[,names(UpstreamStats) %in% fields]
+```
+
+```{r Index master data}
+
+# Set up storage for covariates:
+NewCovars <- data.frame(array(NA, c(nrow(Sites),(length(fields)+ncol(Sites)))))
+colnames(NewCovars) <- c("site", "Latitude", "Longitude", fields)
+NewCovars[,1:3] <- Sites
+
+start.time <- proc.time()[3]
+for ( i in 1:nrow(NewCovars)){
+
+  #Make the site a SpatialPoints object:
+  point <- SpatialPoints(matrix(data=c(NewCovars$Longitude[i],NewCovars$Latitude[i]),ncol=2,byrow=T), proj4string=CRS(proj4.NHD))
+  
+  #Get catchment that contains the point:
+  featureID <- over(point,Catchments)$FEATUREID
+  
+  NewCovars[i,4:ncol(NewCovars)] <- SelectUpstreamStats[SelectUpstreamStats$FEATUREID == featureID,]
+  
+  print(i)
+}
+end.time   <- proc.time()[3]
+print(paste0((end.time-start.time)/3600, " hours"))
+
+```
+
+```{r Export Data}
+
+save(covariate.data, file = "C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/NewCovariateData_MEDMRsites.RData")
+```
+
+```{r Join new data with existing}
+
+covariate.data <- NewCovars
+load("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/NewCovariateData_865sites.RData")
+
+covariate.data <- rbind(covariate.data, NewCovars)
+
+numsites <- length(covariate.data$site)
+
+save(covariate.data, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/NewCovariateData_", numsites, "sites.RData"))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# SOME IN-PROGRESS CODE BELOW:
+
+
+
+
+
+
+
+
+
+#======================================================================================================================================================
+# In case we want Local Stats:
+#======================================================================================================================================================
+#names(LocalStats)
+
+fields <- c("FEATUREID", "ReachLengthKM", "AreaSqKM", "Forest", "Herbacious", "Agriculture", "HerbaciousOrAgriculture", "Developed", 
+            "DevelopedNotOpen", "Wetland", "WetlandOrWater", "Water", "UndevelopedForest", "Impervious", "AnnualTmaxC", "AnnualTminC", "WinterPrcpMM",
+            "AnnualPrcpMM", "AtmDepositionNO3", "AtmDepositionSO4", "BasinSlopeDEG", "DrainageClass", "HydrologicGroupA", "HydrologicGroupAB", 
+            "HydrologicGroupCD", "HydrologicGroupD4", "HydrologicGroupD1", "SurficialCoarseC", "PercentSandy", "ReachElevationM", 
+            "BasinElevationM", "SummerPrcpMM", "ReachSlopePCNT", "BasinSlopePCNT", "JanPrcpMM", "FebPrcpMM", "MarPrcpMM", "AprPrcpMM", "MayPrcpMM", 
+            "JunPrcpMM", "JulPrcpMM", "AugPrcpMM", "SepPrcpMM", "OctPrcpMM", "NovPrcpMM", "DecPrcpMM", "CONUSOpenWater", "CONUSWetland")
+LocalStats <- LocalStats[,names(LocalStats) %in% fields]
+
+# Set up storage for covariates:
+master.data.local <- data.frame(array(NA, c(length(Sites),(length(fields)+3))))
+colnames(master.data.local) <- c("Site", "Latitude", "Longitude", fields)
+
+start.time <- proc.time()[3]
+for ( i in 1:length(Sites)){
+  
+  Lat <- Locations[which(Locations$Site == Sites[i]), 'Latitude' ]
+  Lon <- Locations[which(Locations$Site == Sites[i]), 'Longitude']
+  
+  master.data.local$Site[i] <- as.character(Sites[i])
+  master.data.local$Latitude[i] <- Lat
+  master.data.local$Longitude[i] <- Lon
+  
+  #Make the site a SpatialPoints object
+  point <- SpatialPoints(matrix(data=c(Lon,Lat),ncol=2,byrow=T), proj4string=CRS(proj4.NHD))
+  
+  #get catchment that contains the point
+  featureID <- over(point,Catchments)$FEATUREID
+  
+  master.data.local[i,4:length(master.data.local[1,])] <- LocalStats[LocalStats$FEATUREID == featureID,]
+  
+  print(i)
+}
+end.time   <- proc.time()[3]
+print(paste0((end.time-start.time)/3600, " hours"))
+
+#save(master.data, master.data.local, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/NewCovariateData_", Sys.Date() ,".RData"))
+#======================================================================================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#
+#   A CLEANER, QUICKER, BUT NOT YET FUNCTIONAL VERSION....
+#
+
+IndexSites <- function(Site){
+  
+  library(maptools)
+  Latitude <- Locations[which(Locations$Site == Site), 'Latitude' ]
+  Longitude <- Locations[which(Locations$Site == Site), 'Longitude']
+  
+  #Make the site a SpatialPoints object
+  point <- SpatialPoints(matrix(data=c(Longitude,Latitude),ncol=2,byrow=T), proj4string=CRS(proj4.NHD))
+  
+  #get catchment that contains the point
+  featureID <- over(point,Catchments)$FEATUREID
+  
+  stats <- UpstreamStats[UpstreamStats$FEATUREID == featureID,]
+  
+  return(c(as.character(Site), Latitude, Longitude, stats))
+}
+
+
+library(parallel)
+
+values <- Sites
+
+# Number of workers (R processes) to use:
+numWorkers <- 8
+# Set up the 'cluster':
+cl <- makeCluster(numWorkers, type = "PSOCK")
+
+# Load the necessary objects into the cluster:
+clusterExport(cl, c("Sites", "Locations", "Catchments", "UpstreamStats", "proj4.NHD" ))
+#clusterExport(cl, library(maptools))
+
+
+# Execute the function:
+start.time <- proc.time()[3]
+Results    <- parSapply(cl, values, IndexSites)
+end.time   <- proc.time()[3]
+print(paste0((end.time-start.time)/3600, " hours"))
+
+# Shut down cluster:
+stopCluster(cl)
+
+#Reformat to match "LocalStats":
+rownames(Results) <- names(LocalStats)
+UpstreamStats <- t(Results)
+UpstreamStats <- as.data.frame(UpstreamStats)
+
+
+
+
+
+

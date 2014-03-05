@@ -1,0 +1,220 @@
+#Author:
+#  Kyle O'Neil
+#Created:
+#  12/15/13
+#Last Updated:
+#  01/15/14
+#Language:
+#	 R
+#Description:
+#  This code is a modification of "DayMetNetCDF.R" that calculates the spatial average of upstream climate
+#   climate data for the sites of interest.
+#========================================================================================================
+
+```{r Load Libraries}
+rm(list=ls())
+#rm(list=setdiff(ls(), c("Catchments","Sites")))
+library(sp)
+library(rgdal)
+library(rgeos)
+library(maptools)     # loads sp library too
+library(chron)
+library(ncdf)
+
+#Load the function that indexes daymet tiles based on a lat/lon point:
+source("C:/KPONEIL/USGS/Scripts/R/StreamTemp/indexDaymetTileByLatLon.R")
+```
+
+```{r Read in Spatial Data and Define Spatial Range, Time Period, etc.}
+proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
+
+#Read in NHD Catchments:
+Catchments <- readShapePoly ( "C:/KPONEIL/USGS/Stream Temperature/Shapefiles/NewEnglandCatchments.shp", proj4string=CRS(proj4.NHD))
+
+#Daymet variables you want:
+Variables <- c("dayl", "srad", "swe", "tmax", "tmin", "prcp")
+
+#Which year do you want data for:
+year <- 2010
+
+```
+
+```{r Define 'Sites' with Tile specified.}
+
+for ( i in 1:length(Catchments$FEATUREID)){   #Site Loop
+  
+    SiteLat <- coordinates(Catchments[i,])[2]
+    SiteLon <- coordinates(Catchments[i,])[1]
+  
+    Tile <- indexDaymetTileByLatLon(SiteLat,SiteLon)
+    
+    TileRef <- data.frame(Catchments$FEATUREID[i], Tile, SiteLon, SiteLat)
+    names(TileRef) <- c('FEATUREID', 'Tile', 'Lon', 'Lat' )
+    
+    if ( i == 1) { Sites <- TileRef}
+    if ( i > 1)  { Sites <- rbind (Sites, TileRef)}
+    print(i)
+}
+
+```
+
+```{r Retrieve Select Data from NetCDFs}
+
+#Need to do this so same NetCDF file is kept open.
+Sites <- Sites[order(Sites$Tile),]
+
+#LSites <- length(Sites$FEATUREID)
+
+Tiles <- unique(Sites$Tile)
+Tiles <- Tiles[-c(9,10)]
+
+#Remove Tiles 12116 & 12117 for this run
+
+start.time <- proc.time()[3]
+for (k in 1:length(Tiles)){
+
+  CurSites <- Sites[Sites$Tile %in% Tiles[k],]
+  LCur <- length(CurSites$FEATUREID)
+
+  for (j in 1:length(Variables)){
+  
+    for ( i in 1:LCur){   #Site Loop
+      
+      print(paste0("Processing: Site ", i," of ", LCur, "   |   Variable ", j, " of ", length(Variables), "   |   Tile: ", k, " of ", length(Tiles)))
+          
+      #ifelse ( i == 1, x <- -9999, x <- Sites$Tile[i-1])
+      if ( i == 1) {
+          
+        NCDF <- open.ncdf(paste0("C:/KPONEIL/SourceData/Projected/DAYMET/Daily/", Tiles[k], "_", year,"/", Variables[j], ".nc"))    #netcdf
+        #Dimension limits of each of the variables we'll use:
+        #----------------------------------------------------
+        start1 = c(1,1)
+        latcount <- c(NCDF$var$lat$varsize[1], NCDF$var$lat$varsize[2])
+        loncount <- c(NCDF$var$lon$varsize[1], NCDF$var$lon$varsize[2])
+        YDcount  <- NCDF$var$yearday$varsize      
+        
+        start2 = c(1, 1, 1)
+        varcount = c(NCDF$var$lat$varsize[1], NCDF$var$lat$varsize[2], NCDF$var$yearday$varsize)
+  
+        #Read in variables:
+        #------------------
+        lat = get.var.ncdf ( nc=NCDF, varid="lat",                 start = start1, count = latcount )
+        lon = get.var.ncdf ( nc=NCDF, varid="lon",                 start = start1, count = loncount )
+        dOY = get.var.ncdf ( nc=NCDF, varid="yearday",             start = 1,      count = YDcount  )
+        var = get.var.ncdf ( nc=NCDF, varid= paste0(Variables[j]), start = start2, count = varcount )
+        
+        close.ncdf(NCDF)
+          
+        dOY <- dOY + 1  #Daymet doy starts at 0.
+          
+        TileCoords <- cbind( as.vector(lon), as.vector(lat))
+        names(TileCoords) <- c('Lon', 'Lat')
+      
+      TileCoordsDF <- as.data.frame(TileCoords)
+      }
+      
+      #Find the closest daymet point to the site:
+      #------------------------------------------
+      distances <- spDistsN1(TileCoords, c(CurSites$Lon[i], CurSites$Lat[i]), longlat = TRUE)
+      MinDist   <- min(distances)
+      distpos   <- which(distances == MinDist)[1]
+    
+      VarLon  <- TileCoordsDF[distpos, 1]
+      VarLat  <- TileCoordsDF[distpos, 2]
+  
+      position <- which(lat == VarLat & lon == VarLon, arr.in = TRUE)  
+      
+      
+      #Pull data from that point into dataframe:
+      #-----------------------------------------
+      temp.var <- data.frame(CurSites$FEATUREID[i], year, dOY, var[position[1], position[2], 1:365]) 
+      names(temp.var) <- c("FEATUREID", "year", "dOY", Variables[j])
+  
+      #If it's the first instance, create a new storage location:
+      if (i == 1) {all.sites <- temp.var} else {all.sites <- rbind(all.sites, temp.var)}
+    }
+    
+    #Join variable records together:
+    if (j == 1) {FullRecord <- all.sites} else {FullRecord <- merge(FullRecord, all.sites, by = c("FEATUREID", "year", "dOY"), all.x = T, sort = F)}
+  
+  }
+  
+  FullRecord$airTemp <- (FullRecord$tmin + FullRecord$tmax)/2
+  
+  save(FullRecord, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateData/LocalValues/NHD_DaymetTile_", Tiles[k],"_", year, ".RData"))
+  rm(all.sites, FullRecord, temp.var, CurSites, LCur)
+  
+}
+end.time   <- proc.time()[3]
+print(paste0((end.time-start.time)/3600, " hours"))
+
+```
+
+```{r Check NA count:}
+
+length(which(is.na(FullRecord)))/(nrow(FullRecord)*6)
+
+
+
+```
+
+
+
+
+```{r Upstream Precipitation Values}
+
+
+
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r Define section name:}
+
+
+NEday2010 <- merge(LocalRecord, UpstreamRecord, by = c("site", "year", "dOY"), all.x = T,  sort = F))
+NEday2010$airTemp <- (NEday2010$tmin + NEday2010$tmax)/2
+
+
+names(NEday2010)[]
+
+
+save(NEday2010, file = "C:/KPONEIL/USGS/Stream Temperature/data/temperature/NEdaymet2010.RData")
+
+
+
+UpRes <- FullRecord[,c(1,2,3,8)]
+
+
+
+load("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/BPA_ClimateData865.RData")
+master.data <- merge(master.data, UpRes, by = c('site', 'year', 'dOY'), all.x = T)
+
+#Check for reasonable NA count. (Don't include stream temperature column.)
+length(which(is.na(master.data[,-7])))
+
+
+
+```
+

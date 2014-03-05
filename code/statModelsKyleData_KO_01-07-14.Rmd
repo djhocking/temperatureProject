@@ -5,26 +5,6 @@ Overall approach:
 4) Predict water temp as function of airTemp and covariates between bps for each prediction site
 5) Summarize data for slopes btw bps
 
-#======================================================================================================
-#                          Work this code in where appropriate:
-#======================================================================================================
-#Move the air temp min/max stuff to the next code. Keep only breakpoint stuff in this one.
-
-#e$flow <- NA
-#
-#
-#e$tAirMin <- e$tmin; 
-#e$tAirMax <- e$tmax
-
-
-
-##Is the covariate data used at all in this code?
-
-#load(paste0('NewCovariateData_', dataSource, 'sites.RData')) #Jan 2014 covariate.data [fixed over time]
-#e <- merge( x = e, y = covariate.data, by = 'site', all.x=T ) 
-#======================================================================================================
-
-
 ```{r load libs}
 rm(list=ls())
 
@@ -38,13 +18,35 @@ library(ggmap)
 library(foreign)
 library(maptools)
 
-basedir <- 'C:/KPONEIL/USGS/Stream Temperature/'
+baseDir <- 'C:/KPONEIL/'
 
-DataSource <- "MASTER"
-
-IndexSource <- "CTDEP"
+dataInDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataIn/')
+dataOutDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataOut/')
+graphsDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/graphs/')
 
 ```
+
+Which agencies do you want to pull data from?
+```{r Choose data source}
+
+CTDEP  <- F
+MAFW   <- F
+MAUSGS <- T
+NHFG   <- F
+NHDES  <- F
+MEDMR  <- F
+MTUSGSYellowstone <- F
+MTUSGSGlacier <- F
+
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   MTUSGSYellowstone, MTUSGSGlacier)
+sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'MTUSGSYellowstone', 'MTUSGSGlacier')
+  
+dataSource <- sourceNames[sourceChoice == T]
+
+sourceList <- paste0(paste0(dataSource, collapse = '_'))#, '_', Sys.Date())
+
+```
+
 
 ```{r global vars}
 dpiIn <- 400
@@ -59,31 +61,48 @@ dpiIn <- 400
 
 
 ```{r load data}
-# run temperatureSegmentedBreakPointAnalysis.Rmd with fileSource='Kyle' before running this script
-#rm(list=ls())
+# run temperatureSegmentedBreakPointAnalysis.Rmd before running this script
 
-basedir <- 'C:/KPONEIL/USGS/Stream Temperature/'
-setwd(paste0(basedir, 'data/temperature/fromKyle/BP_Analysis/BP_Analysis'))
+load(paste0(dataOutDir, sourceList,  '/et_', sourceList, '.RData'))
+removed1 <- c('Latitude', 'Longitude')
+covs[,-which(names(et) %in% removed1)]
 
-load(paste0(basedir, 'temperatureProject/etKyle_', DataSource, '.RData'))
 
-et <- et[et$agency == IndexSource,]
 
-# load in covariate data to merge into slopes df [no day data]
-load(paste0('NewCovariateData_', DataSource, '.RData')) #Jan 2014 covariate.data [fixed over time]
+#Merge in daymet climate data:
+load(paste0(dataInDir, dataSource, '/streamTempSitesObservedClimateData_', dataSource, '.RData')) 
+
+removed2 <- c('AgencyID', 'agency', 'temp', 'airTemp', 'Latitude', 'Longitude')
+
+masterData <- masterData[, -which(names(masterData) %in% removed2)]
+et <- merge(et, masterData, by = c('site', 'year', 'dOY'), all.x=T, sort = F )
+
+et$flow <- NA 
+et$tAirMin <- et$tmin; et$tAirMax <- et$tmax 
+
+#Load in covariate data to merge into slopes df [no day data]
+for ( i in 1:length(dataSource)){
+  
+  load(paste0(dataInDir, dataSource[i], '/covariateData_', dataSource[i], '.RData')) #Jan 2014 covariateData [fixed over time] 
+  if ( i == 1) {covs <- covariateData} else (covs <- rbind(covs, covariateData))
+
+}
+covariateData <- covs
 
 #Overwrite NaNs with NAs:
-covariate.data <- replace(covariate.data, is.na(covariate.data), NA)
+covariateData <- replace(covariateData, is.na(covariateData), NA)
 
-#covariate.data$site <- covariate.data$Site
-covariate.data$siteCh <- as.character(covariate.data$site)
+#covariateData$site <- covariateData$Site
+covariateData$site <- as.character(covariateData$site)
+
+et <- merge(et, covariateData, by = 'site', all.x=T, sort = F )
 
 # get bps out of et
 bp <- unique(et[,c('site','year','springBP','summerBP','fallBP')]  )
 bp <- bp[is.finite(bp$springBP) | is.finite(bp$summerBP) | is.finite(bp$fallBP),]
-bp$siteCh <- as.character(bp$site) #for merging
+bp$site <- as.character(bp$site) #for merging
   
-siteData <- merge( x = bp, y = covariate.data, by = 'siteCh', all.x=T )
+siteData <- merge( x = bp, y = covariateData, by = 'site', all.x=T )
 siteData$site <- siteData$Site
 
 # turn Inf to NA in bps
@@ -114,48 +133,42 @@ et$sweS <-   (et$swe-mean(et$swe,na.rm=T))/sd(et$swe,na.rm=T)#scale(et$swe)
 
 ```{r check out data}
 #pairs(~Latitude+Longitude+Forest+ Impervious+ Agriculture+ BasinElevationM+ ReachSlopePCNT+ TotDASqKM+ WetlandOrWater+ SurficialCoarseC,data=et)
-
 #Latitude, Longitude, Forest, Impervious, Agriculture, BasinElevationM, ReachSlopePCT, TotDASqKM, WetlandOrWater, SurficialCoarseC
 
 
 #Makes barcode looking plot of data records:
 #-------------------------------------------
 gTile <- 
-ggplot(siteData,aes(site.x,year,z=any(c(!is.na(springBP),!is.na(summerBP),!is.na(fallBP)))))+
+ggplot(siteData,aes(site,year,z=any(c(!is.na(springBP),!is.na(summerBP),!is.na(fallBP)))))+
   scale_x_discrete('Site')+
   scale_y_continuous('Year')+
   theme_bw(base_size=20) + 
     theme(axis.text.x = element_blank())+
   geom_tile()
 
-#ggsave( file=paste(basedir, 'data/temperature/fromKyle/gTile', DataSource, '.png',sep=''), plot=gTile, dpi=dpiIn , width=8,height=5, units='in' )
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/gTile', IndexSource, '.png',sep=''), plot=gTile, dpi=dpiIn , width=8,height=5, units='in' )
+ggsave( file=paste0(graphsDir, sourceList, '/gTile', sourceList, '.png'), plot=gTile, dpi=dpiIn , width=8,height=5, units='in' )
 
 
 #Colors by number of observations?
 #---------------------------------
 gTileHeat <- 
-ggplot(siteData,aes(site.x,year,z=count))+
+ggplot(siteData,aes(site,year,z=count))+
   geom_tile(aes(fill=count))+
   scale_x_discrete('Site')+
   scale_y_continuous('Year')+ 
   theme(axis.text.x = element_blank())
 
-#ggsave( file=paste(basedir, 'data/temperature/fromKyle/gTileHeat', DataSource, '.png',sep=''), plot=gTileHeat, dpi=dpiIn , width=8,height=5, units='in' )
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/gTileHeat', IndexSource, '.png',sep=''), plot=gTileHeat, dpi=dpiIn , width=8,height=5, units='in' )
+ggsave( file=paste0(graphsDir, sourceList,'/gTileHeat', sourceList, '.png'), plot=gTileHeat, dpi=dpiIn , width=8,height=5, units='in' )
 ```
 
 ```{r regression temp~airTemp+...}
-# could use in formulae
-#fixCov <- c("Latitude","Longitude","Forest", "Agriculture","BasinElevationM","ReachSlopePCNT", "TotDASqKM", "WetlandOrWater","SurficialCoarseC")
-
+#Define covariates used in model. This gets used later in the prediction stage as well.
 fixCov <- c("Latitude","Longitude","Forest", "Agriculture","BasinElevationM","ReachSlopePCNT", "TotDASqKM", "WetlandOrWater","SurficialCoarseC", "ImpoundmentsOpenSqKM", "WetlandsOpenSqKM")
-
-
-cor(et3[,fixCov])
 
 et2 <- et[et$segment %in% 2,]
 et3 <- et[et$segment %in% 3,]
+
+cor(et3[,fixCov])
 
 # Segment 2:
 #===========
@@ -186,7 +199,7 @@ m3S2 <- lm(temp~(airTemp+airTempLagged1+airTempLagged2+
               Forest+ Agriculture+ 
               BasinElevationM+ ReachSlopePCNT+ TotDASqKM+ 
               WetlandOrWater+ SurficialCoarseC+ 
-              TNC_DamCount + ImpoundmentsOpenSqKM + WetlandsOpenSqKM +
+              ImpoundmentsOpenSqKM + WetlandsOpenSqKM +
               daylS + sradS + sweS)^2,
          data=et2)
 
@@ -223,11 +236,9 @@ m3S3 <- lm(temp~(airTemp+airTempLagged1+airTempLagged2+
               Forest+ Agriculture+ 
               BasinElevationM+ ReachSlopePCNT+ TotDASqKM+ 
               WetlandOrWater+ SurficialCoarseC+ 
-              TNC_DamCount + ImpoundmentsOpenSqKM + WetlandsOpenSqKM +
+              ImpoundmentsOpenSqKM + WetlandsOpenSqKM +
               daylS + sradS + sweS)^2,
          data=et3)
-
-
 
 
 AIC(m0S3,m1S3,m2S3,m3S3)
@@ -272,11 +283,6 @@ lm(temp~airTemp + airTempLagged1 + airTempLagged2 + Latitude + Longitude + Basin
 
 
 
-
-
-
-
-
 ```{r get predicted values}
 et2$pred <- predict(m3S2, newdata=et2)
 et2$pred0 <- predict(m0S2, newdata=et2)
@@ -297,7 +303,7 @@ gPredObs <-
   theme_bw(base_size=20) +
   geom_abline(intercept=0,slope=1,color='white')
 
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/predObs', IndexSource, '.png',sep=''), plot=gPredObs, dpi=dpiIn , width=8,height=5, units='in' )
+ggsave( file=paste0(graphsDir, sourceList,'/predObs', sourceList, '.png'), plot=gPredObs, dpi=dpiIn , width=8,height=5, units='in' )
 
 ```
 
@@ -305,16 +311,15 @@ ggsave( file=paste(basedir, 'data/temperature/fromKyle/predObs', IndexSource, '.
 Models for breakpoints
 some early dates for spring and some late days for fall - need to see what's up with those site/years
 
-```{r get index for swe}
-# surrogate for snow model. Get last day in spring where swe is x and first day in fall where swe is x
-ggplot(SWERecord[SWERecord$year %in% c(2008,2007,2009),],aes(dOY,swe))+
-  geom_line(aes(color=site))+
-  facet_wrap(~year)
-
-
-# decided to use year as RE in lmer for now. will need to add in more mechanistic model in the future
-
-```
+#```{r get index for swe}
+## surrogate for snow model. Get last day in spring where swe is x and first day in fall where swe is x
+#ggplot(SWERecord[SWERecord$year %in% c(2008,2007,2009),],aes(dOY,swe))+
+#  geom_line(aes(color=site))+
+#  facet_wrap(~year)
+#
+## decided to use year as RE in lmer for now. will need to add in more mechanistic model in the future
+#
+#```
 
 ```{r regression bp1~+...}
 
@@ -343,7 +348,7 @@ m7bp1 <- lmer(springBP~
               Forest+ Agriculture+ 
               BasinElevationM+ ReachSlopePCNT+ TotDASqKM+ 
               WetlandOrWater+ SurficialCoarseC +
-              TNC_DamCount + ImpoundmentsOpenSqKM + WetlandsOpenSqKM +
+              ImpoundmentsOpenSqKM + WetlandsOpenSqKM +
               (1|year),
          data=siteData)
 anova(m7bp1)
@@ -446,7 +451,9 @@ ggplot(siteData[siteData$springBP>25,], aes(bp1Pred,springBP))+
   scale_y_continuous("Observed spring breakpoint")+
   theme_bw(base_size=20)
 
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/gObsPredBP1_', IndexSource,'.png',sep=''), plot=gObsPredBP1, dpi=dpiIn , width=8,height=5, units='in' )
+ggsave( file=paste0(graphsDir, sourceList,'/gObsPredBP1_', sourceList, '.png'), plot=gObsPredBP1, dpi=dpiIn , width=8,height=5, units='in' )
+
+graphsDir, sourceList,'/gObsPredBP3_', sourceList, '.png'
 
 #need to look into 2008, low observed values
 gObsPredBP2 <- 
@@ -457,7 +464,7 @@ ggplot(siteData[siteData$summerBP>180&siteData$summerBP<240&siteData$year!=2008,
   scale_y_continuous("Observed summer breakpoint")+
   theme_bw(base_size=20) 
 
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/gObsPredBP2_', IndexSource,'.png',sep=''), plot=gObsPredBP2, dpi=dpiIn , width=8,height=5, units='in' )
+ggsave( file=paste0(graphsDir, sourceList,'/gObsPredBP2_', sourceList, '.png'), plot=gObsPredBP2, dpi=dpiIn , width=8,height=5, units='in' )
 
 gObsPredBP3 <- 
 ggplot(siteData, aes(bp3Pred,fallBP))+
@@ -467,7 +474,7 @@ ggplot(siteData, aes(bp3Pred,fallBP))+
   scale_y_continuous("Observed fall breakpoint")+
   theme_bw(base_size=20)#+facet_wrap(~year) 
 
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/gObsPredBP3_', IndexSource,'.png',sep=''), plot=gObsPredBP3, dpi=dpiIn , width=8,height=5, units='in' )
+ggsave( file=paste0(graphsDir, sourceList,'/gObsPredBP3_', sourceList, '.png'), plot=gObsPredBP3, dpi=dpiIn , width=8,height=5, units='in' )
 
 ```
 
@@ -477,7 +484,7 @@ ggsave( file=paste(basedir, 'data/temperature/fromKyle/gObsPredBP3_', IndexSourc
 siteData$bp1bp3 <- siteData$bp3Pred - siteData$bp1Pred
 siteData$bp1bp3AvgYear <- siteData$bp3PredAvgYear - siteData$bp1PredAvgYear
 
-save(siteData,file=paste0(basedir, 'data/temperature/fromKyle/siteDataWBPs', IndexSource, '.RData'))
+save(siteData,file=paste0(dataOutDir, sourceList,'/siteDataWBPs_', sourceList, '.RData'))
 ```
 
 Predict values for selected catchements
@@ -496,39 +503,39 @@ DaymetTiles <- c(11754, 11755, 11934, 11935)
 Year <- 2010
 
 #Load the 
-load("C:/KPONEIL/USGS/GIS/Covariate Stats/NENY_CovariateData_2014-02-04.RData")
+load(paste0(dataInDir, 'NENY_CovariateData_2014-02-04.RData')
 
-if( exists("fixCov")){ PredictionCovs <- c('FEATUREID', fixCov)} else( print("Define prediction covariates."))
+if( exists("fixCov")){ predictionCovs <- c('FEATUREID', fixCov)} else( print("Define prediction covariates."))
 
-#PredictionCovs <- c('FEATUREID', .............)
+#predictionCovs <- c('FEATUREID', .............)
 
-
+#Read in NHD catchments you want to predict for. This should fall within the boundaries of the daymet tiles above.
 proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
-Catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/CT_Catchment.shp", proj4string=CRS(proj4.NHD))
+catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/CT_Catchment.shp", proj4string=CRS(proj4.NHD))
 
-Features <- Catchments$FEATUREID
+features <- catchments$FEATUREID
 
 ```
 
 ```{r predicted values for select catchments}
 
-#Here "UpstreamStatsCT" has become "PredictionStats" and "CTday2010" has become "FullRecord".
+#Here "UpstreamStatsCT" has become "predictionStats" and "CTday2010" has become "FullRecord".
 
 #############################
 # predict bps
 
-PredictionStats <- UpstreamStats[ ,names(UpstreamStats) %in% PredictionCovs]
+predictionStats <- UpstreamStats[ ,names(UpstreamStats) %in% predictionCovs]
 
 rm(UpstreamStats, LocalStats)
 
-PredictionStats$year <- Year # for bp predictions
+predictionStats$year <- Year # for bp predictions
 
 #REform=NA uses no REs. Default is to use all REs (year in our case)
-PredictionStats$bp1 <- predict(m7bp1,newdata=PredictionStats, allow.new.levels = T)#,REform=~(1|year))
-PredictionStats$bp2 <- predict(m7bp2,newdata=PredictionStats)#,REform=~(1|year))
-PredictionStats$bp3 <- predict(m7bp3,newdata=PredictionStats)#,REform=~(1|year))
+predictionStats$bp1 <- predict(m7bp1,newdata=predictionStats, allow.new.levels = T)#,REform=~(1|year))
+predictionStats$bp2 <- predict(m7bp2,newdata=predictionStats)#,REform=~(1|year))
+predictionStats$bp3 <- predict(m7bp3,newdata=predictionStats)#,REform=~(1|year))
 
-PredictionStats$bp1bp3 <- PredictionStats$bp3 - PredictionStats$bp1
+predictionStats$bp1bp3 <- predictionStats$bp3 - predictionStats$bp1
 ##########################
 
 for ( i in 1:length(DaymetTiles)){
@@ -541,10 +548,10 @@ for ( i in 1:length(DaymetTiles)){
   
   load(paste0('NHD_DaymetTile_' , DaymetTiles[i], '_', Year, '.RData'))
   
-  PredictionStatsTile <- PredictionStats[PredictionStats$FEATUREID %in% FullRecord$FEATUREID, ]
+  predictionStatsTile <- predictionStats[predictionStats$FEATUREID %in% FullRecord$FEATUREID, ]
 
-  if(exists('Features')){PredictionStatsTile <- PredictionStatsTile[PredictionStatsTile$FEATUREID %in% Features, ]}
-  if(exists('Features')){FullRecord <- FullRecord[FullRecord$FEATUREID %in% Features,]}
+  if(exists('features')){predictionStatsTile <- predictionStatsTile[predictionStatsTile$FEATUREID %in% features, ]}
+  if(exists('features')){FullRecord <- FullRecord[FullRecord$FEATUREID %in% features,]}
   
   FullRecord$site <- FullRecord$FEATUREID
 
@@ -553,7 +560,7 @@ for ( i in 1:length(DaymetTiles)){
 
   # Merge in bps and assign segments. Do here to make FullRecord smaller:
   #----------------------------------------------------------------------
-  FullRecord <- merge( x=FullRecord, y=PredictionStatsTile, all.x=T, by = 'FEATUREID' )
+  FullRecord <- merge( x=FullRecord, y=predictionStatsTile, all.x=T, by = 'FEATUREID' )
   
   #limit FullRecord to between bp1 and bp3 and assign segments
   FullRecord <- FullRecord[FullRecord$dOY > FullRecord$bp1 & 
@@ -602,40 +609,42 @@ for ( i in 1:length(DaymetTiles)){
   names(slopesCast) <- c('site','slopeSeg2','slopeSeg3')
   FullRecord <- merge( x=FullRecord, y=slopes, all.x=T, by = c('site','segment') )
   
-  PredictionStatsTile$site <- PredictionStatsTile$FEATUREID
-  PredictionStatsTile <- merge( x=PredictionStatsTile, y=slopesCast, all.x=T, by = c('site') )
+  predictionStatsTile$site <- predictionStatsTile$FEATUREID
+  predictionStatsTile <- merge( x=predictionStatsTile, y=slopesCast, all.x=T, by = c('site') )
   #ggplot(slopes, aes(slope)) + geom_histogram()+facet_wrap(~segment)
   
   if ( i == 1 ) {JoinFullRecord <- FullRecord} else(rbind(JoinFullRecord, FullRecord))
   
-  if ( i == 1 ) {JoinPredictionStatsTile <- PredictionStatsTile} else(JoinPredictionStatsTile <- rbind(JoinPredictionStatsTile, PredictionStatsTile))
+  if ( i == 1 ) {JoinPredictionStatsTile <- predictionStatsTile} else(JoinPredictionStatsTile <- rbind(JoinPredictionStatsTile, predictionStatsTile))
   
   
-  TempPreds <- PredictionStatsTile[,c('FEATUREID', 'bp1', 'bp2', 'bp3', 'bp1bp3', 'slopeSeg2', 'slopeSeg3')]
+  TempPreds <- predictionStatsTile[,c('FEATUREID', 'bp1', 'bp2', 'bp3', 'bp1bp3', 'slopeSeg2', 'slopeSeg3')]
   
   if ( i == 1 ) {Predictions <- TempPreds}  else (Predictions <- rbind(Predictions, TempPreds))
   
 }
 
 
+paste0(dataOutDir, sourceList,'/siteDataWBPs_', sourceList, '.RData')
+
 #Save Prediction Files:
 #----------------------
-save(JoinFullRecord,file=paste0(basedir, 'data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateDataNHD_DaymetTile' , DaymetTiles[i], '_', Year, 'AfterR_', IndexSource, '.RData'))
+save(JoinFullRecord, file=paste0(dataOutDir, sourceList, '/DaymetClimateDataNHD_DaymetTile' , DaymetTiles[i], '_', Year, 'AfterR_', sourceList, '.RData'))
 
-save(JoinPredictionStatsTile,file=paste0(basedir, 'data/temperature/fromKyle/UpstreamStatsTile' , DaymetTiles[i], '_', Year, 'AfterR_', IndexSource, '.RData'))
+save(JoinPredictionStatsTile, file=paste0(dataOutDir, sourceList, '/UpstreamStatsTile' , DaymetTiles[i], '_', Year, 'AfterR_', sourceList, '.RData'))
 
 
 #Write out prediction files for ArcGIS:
 #--------------------------------------
 names(Predictions) <- c('FEATUREID', 'SpringBP', 'SummerBP', 'FallBP', 'SyncTemps', 'RiseSlope', 'FallSlope')
-write.csv(Predictions, file = paste0(basedir, 'data/temperature/fromKyle/BP_Predictions/BP_Predictions', Year, '_', IndexSource,'.csv'), row.names = F )
+write.csv(Predictions, file = paste0(dataOutDir, sourceList, '/BP_Predictions', Year, '_', sourceList,'.csv'), row.names = F )
 
-write.dbf(Predictions, file = paste0(basedir, 'data/temperature/fromKyle/BP_Predictions/BP_Predictions', Year, '_', IndexSource,'.dbf'))
+write.dbf(Predictions, file = paste0(dataOutDir, sourceList, '/BP_Predictions', Year, '_', sourceList,'.dbf'))
 
 ```
 
 
-```{r Explore prediction issues}
+#```{r Explore prediction issues}
 
 pred <- JoinPredictionStatsTile
 
@@ -651,9 +660,9 @@ load("C:/KPONEIL/USGS/GIS/Covariate Stats/NENY_CovariateData_2014-02-04.RData")
 
 test <- which(is.na(UpstreamStats))
   
-length(which(is.infinite(covariate.data$PercentImpoundedOpen)))
+length(which(is.infinite(covariateData$PercentImpoundedOpen)))
 length(which(is.infinite(PredicitonStats$ImpoundmentsOpenSqKM)))
-covariate.data$ImpoundmentsOpenSqKM
+covariateData$ImpoundmentsOpenSqKM
 
 
 unique(JoinFullRecord$site[which(is.na(JoinFullRecord$airTemp))])
@@ -661,14 +670,16 @@ unique(JoinFullRecord$site[which(is.na(JoinFullRecord$airTemp))])
 
 ```
 #
-# A bunch of undocumented plots. Skip these for now. (Come back when I have the time.)
+# A bunch of extra plots. Skip these for now.
 #
 
 
 
 
 #CHUNK 10
-```{r this section goes into chunk 10}
+
+#```{r this section goes into chunk 10}
+
 #Pick some sites here to look at. ( I think...)
 #==============================================
 ggplot(et3[et3$site %in% "USFS_2432688",],aes(airTemp,pred))+
@@ -727,7 +738,7 @@ ggplot(et3[et3$site %in% "2432688",],aes(dOY,temp))+
 
 
 
-```{r bp raw data graphs for talk}
+#```{r bp raw data graphs for talk}
 dat <- et[ et$year == 2008 & et$site %in% '235' ,]
 
 #hist(siteData$springBP)
@@ -898,7 +909,7 @@ ________________________________________________________________________________
 
 
 
-```{r map data}
+#```{r map data}
 load(file=file=paste0(basedir, 'data/temperature/fromKyle/UpstreamStatsCTAfterR.RData'))
 
 map <- qmap(c(lon=-72.8, lat=41.5), source="google", zoom=9)

@@ -1,0 +1,158 @@
+This script averages the local daymet climate data over the upstream catchments. 
+Currently, this is only done for precipitation for the prediction catchments.
+
+```{r Create master precipitation dataframe}
+
+rm(list = ls())
+
+library(reshape)
+
+DaymetTiles <- c(11754, 11755, 11756, 11934, 11935, 11936, 12114, 12117, 12115, 12116, 12295, 12296, 12297)
+Year <- 2010
+
+setwd("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateData/LocalValues")
+for ( i in 1:length(DaymetTiles)){
+  
+  print(i)
+  load(paste0('NHD_DaymetTile_' , DaymetTiles[i], '_', Year, '.RData'))
+  
+  FullRecord <- FullRecord[c('FEATUREID', 'dOY', 'prcp')]
+  
+  if( i == 1) {PRCP <- FullRecord } else ( PRCP <- rbind(PRCP, FullRecord))
+  rm(FullRecord)
+}
+
+```
+
+
+```{r Average upstream precipitation values}
+load("C:/KPONEIL/USGS/GIS/Covariate Stats/DelineatedCatchments/DelineatedCatchments_NHDPlus_NENY.RData")
+DelineatedCatchmentsMaster <- NENYDelineatedCatchments
+MasterLength <- length(DelineatedCatchmentsMaster)
+
+
+for ( i in 1:length(DaymetTiles)){
+  
+  load(paste0('NHD_DaymetTile_' , DaymetTiles[i], '_', Year, '.RData'))
+  
+  sites <- unique(FullRecord$FEATUREID)
+  
+  for( j in 1:length(sites)){
+    
+    print(paste0( 'Processing... Site: ', j , ' of ', length(sites),' | Tile: ', i, ' of ', length(DaymetTiles)))
+    
+    featureID <- sites[j]
+    features <- DelineatedCatchmentsMaster[[which(sapply(c(1:MasterLength),FUN = function(x){DelineatedCatchmentsMaster[[x]][1]==featureID})==TRUE)]]
+    
+    Basin <- PRCP[which(PRCP$FEATUREID %in% features),]
+    BasinCast <- cast(Basin, dOY~FEATUREID, value = 'prcp') 
+    
+    if ( length(BasinCast$dOY) > 365) {MEAN <- rowMeans(BasinCast[,-1], na.rm = T)} else(MEAN <- BasinCast[,2])    
+    
+    BasinMean <- data.frame(featureID, BasinCast$dOY, MEAN)
+    
+    names(BasinMean) <- c('FEATUREID', 'dOY', 'prcp')
+    
+    if( j ==1 ) { FullPrcp <- BasinMean} else ( FullPrcp <- rbind(FullPrcp, BasinMean))
+  }
+
+  FullRecord <- FullRecord[, -which(names(FullRecord) == 'prcp')]
+  
+  FullRecord <- merge(FullRecord, FullPrcp, by = c('FEATUREID', 'dOY'), all.x = T, sort = F)
+  
+  save(FullRecord, file = paste0('C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateData/NHD_DaymetTile_' , DaymetTiles[i], '_', Year, '.RData'))
+ 
+}
+
+```
+
+
+
+
+##################################################################################################################################################
+#                                                                                                                                                #
+#                                              UNDER CONSTRUCTION                                                                                #    
+#                                                                                                                                                #      
+##################################################################################################################################################
+
+```{r parallel processing version}
+
+
+sites <- unique(PRCP$FEATUREID)
+
+#DelinationStation<- function(j){
+  
+  for( j in 1:length(sites)){
+    
+    print(paste0( 'Processing... Site: ', j , ' of ', length(sites),' | Tile: ', i, ' of ', length(DaymetTiles)))
+    
+    featureID <- sites[j]
+    features <- DelineatedCatchmentsMaster[[which(sapply(c(1:MasterLength),FUN = function(x){DelineatedCatchmentsMaster[[x]][1]==featureID})==TRUE)]]
+    
+    Basin <- PRCP[which(PRCP$FEATUREID %in% features),]
+    BasinCast <- cast(Basin, dOY~FEATUREID, value = 'prcp') 
+    
+    if ( length(BasinCast$dOY) > 365) {MEAN <- rowMeans(BasinCast[,-1])} else(MEAN <- BasinCast[,2])
+    #if ( length(features) > 1) {MEAN <- rowMeans(BasinCast[,-1])} else(MEAN <- BasinCast[,2])
+    
+    BasinMean <- data.frame(featureID, BasinCast$dOY, MEAN)
+    
+    names(BasinMean) <- c('FEATUREID', 'dOY', 'prcp')
+    
+    
+    if( j ==1 ) { FullPrcp <- BasinMean} else ( FullPrcp <- rbind(FullPrcp, BasinMean))
+  }
+
+  FullRecord <- FullRecord[, -which(names(FullRecord) == 'prcp')]
+  
+  FullRecord <- merge(FullRecord, FullPrcp, by = c('FEATUREID', 'dOY'), all.x = T, sort = F)
+  
+  save(FullRecord, file = paste0('C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateData/UpstreamPrcp/NHD_DaymetTile_' , DaymetTiles[i], '_', Year, '.RData'))
+ 
+}
+
+
+
+
+library(parallel)
+
+values <- 1:length(sites)
+
+# Number of workers (R processes) to use:
+numWorkers <- 8
+# Set up the 'cluster':
+cl <- makeCluster(numWorkers, type = "PSOCK")
+
+# Load the necessary objects into the cluster:
+clusterExport(cl, c("NewMean", "sites", "PRCP", "DelineatedCatchmentsMaster",  "MasterLength"))
+clusterExport(cl, library(reshape))
+
+# Execute the function:
+start.time <- proc.time()[3]
+Results    <- parSapply(cl, values, UpstreamSpatialAverage)
+end.time   <- proc.time()[3]
+print(paste0((end.time-start.time)/3600, " hours"))
+
+# Shut down cluster:
+stopCluster(cl)
+
+
+
+```
+
+  
+  if (i == 1 ) {a <- FullRecord}
+  if (i == 2 ) {b <- FullRecord}
+  if (i == 3 ) {c <- FullRecord}
+  if (i == 4 ) {d <- FullRecord}
+  if (i == 5 ) {e <- FullRecord}
+  if (i == 6 ) {f <- FullRecord}
+  if (i == 7 )  {g <- FullRecord}
+  if (i == 8 )  {h <- FullRecord}
+  if (i == 9 )  {i <- FullRecord}
+  if (i == 10 ) {j <- FullRecord}
+  if (i == 11 ) {k <- FullRecord}
+  if (i == 12 ) {l <- FullRecord}
+  rm(FullRecord)
+}
+  

@@ -1,0 +1,206 @@
+```{r Load Data & User specifications.}
+
+rm(list=ls())
+
+load("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/StreamTempData_865sites_NoLatLon.RData")
+
+setwd("C:/KPONEIL/USGS/Stream Temperature/Raw Stream Temperature Data")
+meta <- read.csv("DMRLoggerLatLong.csv")
+data <- read.csv("Downeast Mean Daily River Temp_DMRdill.csv")
+
+#Enter where the data came from:
+Agency <- "MEDMR"
+
+#Enter the sites you know you want to leave out:
+SitesToCut <- "6ESTUAR1.12"
+
+```
+
+
+```{r Cut out the duplicated records and remove sites you don't want}
+
+sites <- unique(data$SiteCode)
+
+for ( i in 1:length(sites)){
+  
+  tempdata <- data[data$SiteCode == sites[i],]
+  
+  REMOVE <- unique(tempdata$DeploymentID[which(duplicated(tempdata$Date) == TRUE)])
+  
+  trimmed <- tempdata[which(tempdata$DeploymentID %in% REMOVE == FALSE),]
+  
+  if ( i == 1) { newdata <- trimmed} else (newdata <- rbind(newdata, trimmed)) 
+}
+
+#Flip it back to data
+if (exists('SitesToCut')) {data <- newdata[which(newdata$SiteCode %in% SitesToCut == FALSE),]} else (data <- newdata)
+
+
+##To test if it works (should be all zeros:
+for ( i in 1:length(sites)){
+  tempdata <- data[data$SiteCode == sites[i],]
+
+  x <- length(which(duplicated(tempdata$Date) == TRUE))
+  print(x)
+}
+
+```
+
+
+```{r Match destination formatting}
+
+#Set up date columns:
+data$date <- as.Date(data$Date, format = "%Y-%m-%d")
+data$year <- as.numeric(strftime(data$Date, '%Y'))
+data$dOY <- as.numeric(strftime(data$date, '%j'))
+
+#Set up storage dataframe:
+temp.frame <- data.frame(paste0(Agency,"_", data$SiteCode), data$year, data$dOY, data$date, data$SiteCode, Agency, data$MeanDailyTemp)
+names(temp.frame) <- names(master.data)
+rm(master.data)
+
+temp.frame <- temp.frame[order(temp.frame$site, temp.frame$year, temp.frame$dOY),]
+head(temp.frame)
+
+#Match lat/lon with 
+alldata <- merge(data, meta , by = "DeploymentID", all.x = T)
+sites <- unique(alldata$SiteCode)
+
+
+# Loop to generate lat/lon with Site data: 
+#   Also tests to ensure that each site corresponds to a single lat/lon coordinate:
+for ( i in 1:length(sites)){
+  
+  curdata <- alldata[alldata$SiteCode == sites[i],]
+  
+  if((length(unique(paste0(curdata$Latitude, curdata$Longitude)))) != 1) {print("Error: Multiple coordinate pairs per site. Need to fix this.")}
+  
+  mets <- curdata[1,c('SiteCode', 'Longitude', 'Latitude')]
+  
+  if ( i == 1) { covs <- mets} else (covs <- rbind(covs, mets))
+ 
+}
+
+covariates <- data.frame(paste0(Agency, "_", covs$SiteCode), covs$Latitude, covs$Longitude)
+names(covariates) <- c("site", "Latitude", "Longitude")
+
+#write.csv(covariates, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/", Agency, "_SiteLocs.csv"), row.names = F)
+
+#Time series for each site without NAs filled in for missing data:
+temp.frame <- merge(temp.frame, covariates, by = 'site', all.x = T, sort = F)
+```
+
+
+```{r Loop through sites and fill in gaps with NAs}
+
+Sites <- unique(temp.frame$site)
+
+for ( i in 1:length(Sites) ){
+
+  exp.data <- temp.frame[temp.frame$site == Sites[i],]
+  
+  A <- min(exp.data$year)
+  B <- max(exp.data$year)
+  
+  start.date <- paste0( A, "-01-01")
+  end.date <- paste0( B, "-12-31")
+  Record <- data.frame(seq(from=as.Date(start.date),to=as.Date(end.date),by="day"))
+  names(Record) <- "date"
+  Record$year <- as.numeric(strftime(Record$date, '%Y'))
+  Record$dOY <- as.numeric(strftime(Record$date, '%j'))
+  
+  new.rec <- merge(Record, exp.data, by = c('date', 'dOY', 'year'), all.x = T, all.y = F, sort = F)
+  
+  #Fill in blanks:
+  new.rec$site       <- exp.data$site[1]
+  new.rec$AgencyID   <- exp.data$AgencyID[1]
+  new.rec$agency     <- exp.data$agency[1]
+  new.rec$Latitude   <- exp.data$Latitude[1]
+  new.rec$Longitude <- exp.data$Longitude[1]
+
+  if(i == 1) { master.data <- new.rec} else ( master.data <- rbind(master.data, new.rec))
+
+}
+
+```
+
+
+```{r Export data}
+
+save(master.data, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/StreamTempData_", Agency, "sites.RData"))
+
+```
+
+
+
+```{r Join new data with existing}
+
+new.data <- master.data
+
+setwd("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis")
+load("StreamTempData_865sites.RData")
+
+master.data <- rbind(master.data, new.data)
+
+numsites<- length(unique(master.data$site))
+
+save(master.data, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/StreamTempData_", numsites, "sites.RData"))
+
+```
+
+
+#Extra below this point.
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r EXTRA: Add Lat/Lon to "master.data"}
+
+setwd("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis")
+
+load("NewCovariateData_865sites.RData")
+load("StreamTempData_865sites.RData")
+
+head(covariate.data)
+master.covs <- data.frame(covariate.data$site, covariate.data$Latitude, covariate.data$Longitude)
+names(master.covs) <- c('site', 'Latitude', 'Longitude')
+
+master.data <- merge(master.data, master.covs, by = 'site', all.x =T, sort = F)
+
+save(master.data, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/StreamTempData_865sites.RData"))
+
+```
+
+
+
+```{r EXTRA: Plot data}
+sites <- unique(temp.frame$site)
+
+for (i in 1:length(sites)){
+  
+  curdata <- temp.frame[temp.frame$site == sites[i],]
+  
+  png(filename=paste0("C:/KPONEIL/USGS/Temporary/Figures/RawData_",curdata$site[1],".png"),width=1000, height=600, bg="white")
+  plot(curdata$date, curdata$temp)
+  
+  
+  #plot(e1$dOY[e1$year %in% year], e1$temp[e1$year %in% year],ylim=c(-5,25),xlim=c(0,366))
+
+  dev.off()
+}
+
+
+data[which(data$SiteCode == "3MAINST11.16"),]
+data[which(data$DeploymentID == "HIS-38"),]
+
+
+```
