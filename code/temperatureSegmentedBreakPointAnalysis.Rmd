@@ -22,11 +22,11 @@ library(DataCombine) # for the slide function
 
 baseDir <- 'C:/KPONEIL/'
 
-dataInDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataIn/')
+dataInDir <-  paste0(baseDir, 'GitHub/projects/temperatureProject/dataIn/')
 dataOutDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataOut/')
-graphsDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/graphs/')
+graphsDir <-  paste0(baseDir, 'GitHub/projects/temperatureProject/graphs/')
 
-source(paste0(baseDir, 'GitHub/projects/temperatureProject/code/temperatureModelingFunctions.R'))
+source(paste0(baseDir, 'GitHub/projects/temperatureProject/code/functions/temperatureModelingFunctions.R'))
 ```
 
 Which agencies do you want to pull data from?
@@ -34,19 +34,19 @@ Which agencies do you want to pull data from?
 
 CTDEP  <- F
 MAFW   <- F
-MAUSGS <- F
+MAUSGS <- T
 NHFG   <- F
 NHDES  <- F
 MEDMR  <- F
 MTUSGSYellowstone <- F
 MTUSGSGlacier <- F
 
-sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   MTUSGSYellowstone, MTUSGSGlacier)
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   MTUSGSYellowstone,   MTUSGSGlacier)
 sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'MTUSGSYellowstone', 'MTUSGSGlacier')
   
 dataSource <- sourceNames[sourceChoice == T]
 
-sourceList <- paste0(paste0(dataSource, collapse = '_'), '_', Sys.Date())
+sourceList <- paste0(paste0(dataSource, collapse = '_'))#, '_', Sys.Date())
 
 setwd(paste0(baseDir, 'GitHub/projects/temperatureProject/'))
 
@@ -675,8 +675,7 @@ if (nrow(temp) > 0 ){
 ```
 
 ```{r save e}
-
-  save(e, file=paste0(dataOutDir, 'e_', sourceList, '.RData'))
-  save(et,segDF,slopes, file=paste0(dataOutDir, 'et_', sourceList, '.RData'))
+  save(e,               file=paste0(dataOutDir, sourceList, '/', 'e_' , sourceList, '.RData'))
+  save(et,segDF,slopes, file=paste0(dataOutDir, sourceList, '/', 'et_', sourceList, '.RData'))
 
 ```
