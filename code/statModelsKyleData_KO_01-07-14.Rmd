@@ -29,17 +29,19 @@ graphsDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/graphs/')
 Which agencies do you want to pull data from?
 ```{r Choose data source}
 
-CTDEP  <- F
-MAFW   <- F
+CTDEP  <- T
+MAFW   <- T
 MAUSGS <- T
-NHFG   <- F
-NHDES  <- F
-MEDMR  <- F
+NHFG   <- T
+NHDES  <- T
+MEDMR  <- T
+USFS   <- T
+VTFWS  <- T
 MTUSGSYellowstone <- F
 MTUSGSGlacier <- F
 
-sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   MTUSGSYellowstone, MTUSGSGlacier)
-sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'MTUSGSYellowstone', 'MTUSGSGlacier')
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier)
+sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS', 'VTFWS',  'MTUSGSYellowstone', 'MTUSGSGlacier')
   
 dataSource <- sourceNames[sourceChoice == T]
 
@@ -65,29 +67,38 @@ dpiIn <- 400
 
 load(paste0(dataOutDir, sourceList,  '/et_', sourceList, '.RData'))
 removed1 <- c('Latitude', 'Longitude')
-covs[,-which(names(et) %in% removed1)]
+#covs[,-which(names(et) %in% removed1)]
+et <- et[,-which(names(et) %in% removed1)]
 
-
-
-#Merge in daymet climate data:
-load(paste0(dataInDir, dataSource, '/streamTempSitesObservedClimateData_', dataSource, '.RData')) 
-
+#These are duplicates that get removed from daymet dataframe before merging:
 removed2 <- c('AgencyID', 'agency', 'temp', 'airTemp', 'Latitude', 'Longitude')
-
-masterData <- masterData[, -which(names(masterData) %in% removed2)]
-et <- merge(et, masterData, by = c('site', 'year', 'dOY'), all.x=T, sort = F )
-
-et$flow <- NA 
-et$tAirMin <- et$tmin; et$tAirMax <- et$tmax 
 
 #Load in covariate data to merge into slopes df [no day data]
 for ( i in 1:length(dataSource)){
+
+  #Load daymet climate data to be merged into et:
+  load(paste0(dataInDir, dataSource[i], '/streamTempSitesObservedClimateData_', dataSource[i], '.RData')) 
+
+  masterData <- masterData[, -which(names(masterData) %in% removed2)]
   
+  if ( i == 1) {newDay <- masterData} else ( rbind(newDay, masterData) )
+  
+  #Load covariate data to be merged into slopes df [no day data]
   load(paste0(dataInDir, dataSource[i], '/covariateData_', dataSource[i], '.RData')) #Jan 2014 covariateData [fixed over time] 
+  
+  covariateData <- covariateData[,-which(names(covariateData) %in% removed1)]
+  
   if ( i == 1) {covs <- covariateData} else (covs <- rbind(covs, covariateData))
 
 }
 covariateData <- covs
+
+
+et <- merge(et, newDay, by = c('site', 'year', 'dOY'), all.x=T, sort = F )
+
+et$flow <- NA 
+et$tAirMin <- et$tmin; et$tAirMax <- et$tmax 
+
 
 #Overwrite NaNs with NAs:
 covariateData <- replace(covariateData, is.na(covariateData), NA)
