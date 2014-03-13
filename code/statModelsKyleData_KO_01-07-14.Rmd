@@ -65,12 +65,11 @@ dpiIn <- 400
 ```{r load data}
 # run temperatureSegmentedBreakPointAnalysis.Rmd before running this script
 
+#Load "et" for the agencies:
 load(paste0(dataOutDir, sourceList,  '/et_', sourceList, '.RData'))
-removed1 <- c('Latitude', 'Longitude')
-#covs[,-which(names(et) %in% removed1)]
-et <- et[,-which(names(et) %in% removed1)]
 
 #These are duplicates that get removed from daymet dataframe before merging:
+removed1 <- c('Latitude', 'Longitude')
 removed2 <- c('AgencyID', 'agency', 'temp', 'airTemp', 'Latitude', 'Longitude')
 
 #Load in covariate data to merge into slopes df [no day data]
@@ -78,23 +77,20 @@ for ( i in 1:length(dataSource)){
 
   #Load daymet climate data to be merged into et:
   load(paste0(dataInDir, dataSource[i], '/streamTempSitesObservedClimateData_', dataSource[i], '.RData')) 
-
   masterData <- masterData[, -which(names(masterData) %in% removed2)]
-  
   if ( i == 1) {newDay <- masterData} else ( rbind(newDay, masterData) )
   
   #Load covariate data to be merged into slopes df [no day data]
   load(paste0(dataInDir, dataSource[i], '/covariateData_', dataSource[i], '.RData')) #Jan 2014 covariateData [fixed over time] 
-  
   covariateData <- covariateData[,-which(names(covariateData) %in% removed1)]
-  
   if ( i == 1) {covs <- covariateData} else (covs <- rbind(covs, covariateData))
 
 }
+masterData    <- newDay
 covariateData <- covs
 
 
-et <- merge(et, newDay, by = c('site', 'year', 'dOY'), all.x=T, sort = F )
+et <- merge(et, masterData, by = c('site', 'year', 'dOY'), all.x=T, sort = F )
 
 et$flow <- NA 
 et$tAirMin <- et$tmin; et$tAirMax <- et$tmax 
