@@ -1,0 +1,150 @@
+
+Which agencies do you want to pull data from?
+```{r Define directories and choose data source}
+
+rm(list = ls())
+
+#library(ggplot2)
+#library(gridExtra)
+
+baseDir <- 'C:/KPONEIL/GitHub/projects/'
+
+```
+
+```{r Read in Data}
+
+agency <- 'VTFWS'
+
+allSites <- read.csv(paste0(baseDir, 'temperatureProject/dataIn/rawDataErrorSites.csv'))
+
+edit <- allSites[(is.na(allSites$spring1) & is.na(allSites$spring2) & is.na(allSites$fall1) & is.na(allSites$fall2) & allSites$agency == agency),]
+
+sitesToChange <- edit$site
+
+load(paste0(baseDir, 'temperatureProject/dataIn/', agency, '/streamTempData_', agency, '.RData'))  #masterData
+
+e <- masterData
+
+e <- e[order(e$site,e$year,e$dOY),]
+
+```
+
+
+```{r Examine data for entries to be removed}
+# Run this code site by site recording the ranges you wish to remove into the "rawDataErrorSites.csv" file.
+# Save the changes and reload it in the next section. Make sure not to run code above and re-write "sitesToChange"
+#   until you move onto the next agency.
+
+i = 1
+
+which(e$site == edit$site[i])
+
+a <- e[which(e$site == edit$site[i] & e$year == edit$year[i]),]
+plot(a$dOY, a$temp, col = 'blue', pch = 19)
+points(a$dOY, a$airTemp, col = 'red')
+a
+
+A <- 157
+B <- 158
+
+remove <- seq(from = A, to = B, by = 1)
+b <- a
+b$temp[which( b$dOY %in% remove)] <- NA
+plot(b$dOY, b$temp, col = 'blue', pch = 19)
+points(b$dOY, b$airTemp, col = 'red')
+
+A <- 261
+B <- 262
+remove <- seq(from = A, to = B, by = 1)
+b <- a
+b$temp[which( b$dOY %in% remove)] <- NA
+plot(b$dOY, b$temp, col = 'blue', pch = 19)
+points(b$dOY, b$airTemp, col = 'red')
+
+```
+
+
+#Edit the data files and save. Make sure that the original is backed up before over-writing these files.
+
+
+```{r Remove entries from "streamTempData"}
+
+allSites <- read.csv(paste0(baseDir, 'temperatureProject/dataIn/rawDataErrorSites.csv'))
+
+edit <- allSites[ allSites$site %in% sitesToChange, ]
+
+for ( i in 1:nrow(edit)){
+  
+  print(i)
+  
+  #Spring:
+  if( !is.na(edit$spring1[i]) & !is.na(edit$spring2[i]) ) {
+    remove1 <- seq(from = edit$spring1[i], to = edit$spring2[i], by = 1)
+    e$temp[which(e$site == edit$site[i] & e$year == edit$year[i] & e$dOY %in% remove1)] <- NA
+  }
+  
+  #Fall:
+  if( !is.na(edit$fall1[i]) & !is.na(edit$fall2[i]) ){
+    remove2 <- seq(from = edit$fall1[i], to = edit$fall2[i], by = 1)
+    e$temp[which(e$site == edit$site[i] & e$year == edit$year[i] & e$dOY %in% remove2)] <- NA
+  }
+}
+
+#Check number of entries removed:
+length( which (is.na (e$temp))) - length( which (is.na (masterData$temp)))
+
+#Over-write output object:
+masterData <- e
+
+```
+
+Now save the data, but make sure that the original files are backed up.
+```{r Save the "streamTempData" file}
+
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', agency, '/streamTempData_', agency, '.RData'))
+
+```
+
+
+
+
+```{r Remove entries from "streamTempSitesObservedClimateData"}
+
+load(paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', agency, '/streamTempSitesObservedClimateData_', agency, '.RData')) 
+e <- masterData
+e <- e[order(e$site,e$year,e$dOY),]
+
+for ( i in 1:nrow(edit)){
+  
+  print(i)
+  
+  #Spring:
+  if( !is.na(edit$spring1[i]) & !is.na(edit$spring2[i]) ) {
+    remove1 <- seq(from = edit$spring1[i], to = edit$spring2[i], by = 1)
+    e$temp[which(e$site == edit$site[i] & e$year == edit$year[i] & e$dOY %in% remove1)] <- NA
+  }
+  
+  #Fall:
+  if( !is.na(edit$fall1[i]) & !is.na(edit$fall2[i]) ){
+    remove2 <- seq(from = edit$fall1[i], to = edit$fall2[i], by = 1)
+    e$temp[which(e$site == edit$site[i] & e$year == edit$year[i] & e$dOY %in% remove2)] <- NA
+  }
+}
+
+#Check number of entries removed:
+length( which (is.na (e$temp))) - length( which (is.na (masterData$temp)))
+
+#Over-write output object:
+masterData <- e
+
+```
+
+Now save the data, but make sure that the original files are backed up.
+```{r Save the "streamTempData" file}
+
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', agency, '/streamTempSitesObservedClimateData_', agency, '.RData'))
+
+```
+
+
+

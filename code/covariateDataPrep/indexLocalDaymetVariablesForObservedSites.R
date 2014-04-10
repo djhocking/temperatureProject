@@ -23,20 +23,29 @@ library(chron)
 library(ncdf)
 
 #Load the function that indexes daymet tiles based on a lat/lon point:
-source("C:/KPONEIL/USGS/Scripts/R/StreamTemp/indexDaymetTileByLatLon.R")
+source("C:/KPONEIL/GitHub/projects/temperatureProject/code/functions/indexDaymetTileByLatLon.R")
 
 #==================================================================================================================
 #                             Read in Site data
 #==================================================================================================================
 
-setwd("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis")
+Source <- "VTFWS"
+
+setwd(paste0("C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/", Source))
+
+load(paste0("dailyStreamTemp", Source, ".RData"))
+
+masterData$agency <- Source
+masterData$AgencyID <- masterData$site
+masterData$site <- paste0(Source, '_', masterData$AgencyID)
 
 
-Source <- "MEDMR"
+#Write out a .csv file for the creation of a shapefile:
+#------------------------------------------------------
+load(paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', Source, '/streamTempData_', Source, '.RData'))
+shapefile <- masterData[, c('site', 'Latitude', 'Longitude')]
+write.csv(shapefile, file = paste0('C:/KPONEIL/USGS/Stream Temperature/Shapefiles/siteLocations/', Source, '.csv'))
 
-
-#load("StreamTempData_865sites.RData")
-load("StreamTempData_MEDMRsites.RData")
 
 #load("NewCovariateData_865sites.RData")
 #load("NewCovariateData_MEDMRsites.RData")
@@ -50,21 +59,19 @@ stats <- data.frame(site = NA, SiteLat = NA, SiteLon = NA, VarLat = NA, VarLon =
 #                             Loop through NetCDF daily data files
 #==================================================================================================================
 
-Sites <- unique(master.data$site)
+Sites <- unique(masterData$site)
 
 start.time <- proc.time()[3]
 for ( i in 1:length(Sites)){
 
   print(i)
  
-  CurRecord <- master.data[which(master.data$site %in% Sites[i]),]
+  CurRecord <- masterData[which(masterData$site %in% Sites[i]),]
   CurRecord <- CurRecord[which(CurRecord$year < 2013),]
   
   SiteLon <- unique(CurRecord$Longitude)#covariate.data$Longitude[which(covariate.data$site == Sites[i])]
   SiteLat <- unique(CurRecord$Latitude)#covariate.data$Latitude [which(covariate.data$site == Sites[i])]
   
-  ####Can probably figure out a better way to do this spatial constraining...
-
   #Index the tile by site location:
   Tile <- indexDaymetTileByLatLon(SiteLat,SiteLon)
   
@@ -77,7 +84,7 @@ for ( i in 1:length(Sites)){
             
       #Now open the NetCDF with the known location:
       #--------------------------------------------
-      NCDF <- open.ncdf(paste0("C:/KPONEIL/SourceData/Projected/DAYMET/Daily/", Tile, "_", year,"/", Variables[j], ".nc"))    #netcdf
+      NCDF <- open.ncdf(paste0("F:/KPONEIL/SourceData/Projected/DAYMET/Daily/", Tile, "_", year,"/", Variables[j], ".nc"))    #netcdf
       #Dimension limits of each of the variables we'll use:
       #----------------------------------------------------
       start1 = c(1,1)
@@ -143,18 +150,46 @@ print(paste0((end.time-start.time)/3600, " hours"))
 FullRecord$airTemp <- (FullRecord$tmin + FullRecord$tmax)/2
 
 
+#Save paired stream and air temp:
+#--------------------------------
+masterData <- FullRecord[,c('site', 'year', 'dOY', 'date', 'AgencyID', 'agency', 'temp', 'airTemp', 'Latitude', 'Longitude')]
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', Source, '/streamTempData_', Source, '.RData'))
+
+
+#Save all climate data:
+#----------------------
+masterData <- FullRecord[order(FullRecord$site,FullRecord$year,FullRecord$dOY),]
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', Source, '/streamTempSitesObservedClimateData_', Source, '_NeedPrcp.RData'))
 
 
 
-master.data <- FullRecord[order(FullRecord$site,FullRecord$year,FullRecord$dOY),]
-save(master.data, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateData_", Source, "sites.RData"))
 
-#save(master.data, file = "C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/BPA_ClimateData865.RData")
+
+
+#
+#
+# Stop here.
+#
+#
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #Look at a couple of metrics:
 
 length(which(is.na(FullRecord)))/length(which(!is.na(FullRecord)))*100
-length(which(is.na(FullRecord$prcp)))/length(FullRecord$prcp)*100
+#length(which(is.na(FullRecord$prcp)))/length(FullRecord$prcp)*100
 
 
 

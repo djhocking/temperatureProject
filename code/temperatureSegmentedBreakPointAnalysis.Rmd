@@ -32,17 +32,22 @@ source(paste0(baseDir, 'GitHub/projects/temperatureProject/code/functions/temper
 Which agencies do you want to pull data from?
 ```{r Choose data source}
 
+#Northeast
 CTDEP  <- F
-MAFW   <- F
+MAFW   <- T
 MAUSGS <- T
 NHFG   <- F
 NHDES  <- F
+USFS   <- F
+VTFWS  <- F
 MEDMR  <- F
+
+#Montana
 MTUSGSYellowstone <- F
 MTUSGSGlacier <- F
 
-sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   MTUSGSYellowstone,   MTUSGSGlacier)
-sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'MTUSGSYellowstone', 'MTUSGSGlacier')
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier)
+sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS', 'VTFWS',  'MTUSGSYellowstone', 'MTUSGSGlacier')
   
 dataSource <- sourceNames[sourceChoice == T]
 
@@ -67,7 +72,7 @@ if( !reRunBP ) {
 ```{r Make graphs?}
 # settings variables
 makeSpringFallGraphs <- T
-indexAbnormalSummerGraphs <- F
+indexAbnormalSummerGraphs <- T
 
 #Creates folders for graphs if they don't exist:
 #-----------------------------------------------
@@ -89,15 +94,27 @@ if (!file.exists(subDataOutDir)){
 
 ```{r Load data}
  if ( reRunBP ){
-
+  
   setwd(dataInDir)
 
   for ( i in 1:length(dataSource)){
     load(paste0(dataSource[i], '/streamTempData_', dataSource[i], '.RData'))  #masterData
     if ( i == 1) {e <- masterData} else ( e <- rbind(e, masterData))
     rm(masterData)
+    
+    load(paste0(dataSource[i], '/covariateData_', dataSource[i], '.RData'))  #masterData
+    if ( i == 1) {d <- covariateData} else ( d <- rbind(d, covariateData))
+    rm(covariateData)
   }
 
+d$site <- as.character(d$site)
+e <- merge(e,d[,c('site', 'StreamOrder', 'HUC_4', 'HUC_8', 'HUC_12' )], by = 'site', all.x = T, sort = F)
+
+# Needed because R confuses factor/character/numeric. 
+e$StreamOrder <- as.character(e$StreamOrder)
+e$HUC_4       <- as.character(e$HUC_4)
+e$HUC_8       <- as.character(e$HUC_8)
+e$HUC_12      <- as.character(e$HUC_12)
 }
 ```
 
@@ -177,6 +194,7 @@ for (i in 1:nrow(siteYearCombos)){
   
   currSite <- which(e$site == as.character(siteYearCombos$site[i]) & e$year == siteYearCombos$year[i] )
 
+  #Need this so sites with very short records don't crash the loop.
   if(length(currSite) >= window){currMean <-  rollapply(e$tempIndex[currSite], width=window, fill=NA, mean)} else(currMean <- NA)
   if(length(currSite) >= window){currSD <-    rollapply(e$tempIndex[currSite], width=window, fill=NA, sd)}   else(currSD <- NA)
   
@@ -196,8 +214,8 @@ e <- e[order(e$count),]
 
 ```{r Create the breaks dataframe}
 
-breaks <- data.frame(array(NA,c(nrow(siteYearCombos),7)))
-names(breaks) <- c('site','year','springBP','summerBP','fallBP','quantileLo','quantileHi')
+breaks <- data.frame(array(NA,c(nrow(siteYearCombos),8)))
+names(breaks) <- c('site','year', 'HUC_8', 'springBP','summerBP','fallBP','quantileLo','quantileHi')
 breaks$fallBPComplete <- FALSE
 breaks$springBPComplete <- FALSE
 breaks$springOrFallBPComplete <- FALSE
@@ -214,9 +232,10 @@ hiCI <- 0.999
 
 for ( i in 1:nrow(siteYearCombos)){
   print(i)
-  breaks$year[i] <- as.numeric(siteYearCombos$year[i])
-  breaks$site[i] <- as.character(siteYearCombos$site[i]) #would like this to stay a factor, but it ends up as numeric in 'breaks'. not sure why
- 
+  breaks$year[i]  <- as.numeric  (siteYearCombos$year[i])
+  breaks$site[i]  <- as.character(siteYearCombos$site[i]) #would like this to stay a factor, but it ends up as numeric in 'breaks'. not sure why
+  breaks$HUC_8[i] <- as.character(d$HUC_8[which(d$site == breaks$site[i])])
+    
   tmp <- e[e$site == siteYearCombos$site[i] & e$year  %in% siteYearCombos$year[i] & e$dOY %in% beginningDayForCI:endingDayForCI,'tempIndex']
   if (any(!is.na(tmp))){
     TIQ <- quantile(tmp, probs=c(loCI,0.5,hiCI),na.rm=T)
@@ -243,8 +262,8 @@ maxCompleteDOYBP3 <- 350
 numForCompleteBP3 <- round( ( maxCompleteDOYBP3-minCompleteDOYBP3 ) * 0.9 )
 
 #Number of days in a row that need to be within the CIs to get assigned synchronised:
-#numForward <- 14 + 1 
-#numForward <- 7  + 0 
+#numForward <- 14 + 1
+#numForward <- 7  + 0
 numForwardSpring <- 10 + 0
 numForwardFall   <- 16 + 0
 
@@ -311,7 +330,7 @@ for (j in 1:nSites){
 			}
 			breaks$springBP[ breaks$year == year & breaks$site == siteList[j] ] <- min(which(runsSpring[,1] == 1))
 			breaks$springBPComplete[ breaks$year == year & breaks$site == siteList[j] ] <- TRUE
-		}
+		} #completeYearsSpring loop
       
 	 if(year %in% completeYearsFall){
 			# Make this not arbitrary
@@ -329,10 +348,9 @@ for (j in 1:nSites){
 			}
 			breaks$fallBP[ breaks$year == year & breaks$site == siteList[j] ] <- max(which(runsFall[,1] == 1))
 			breaks$fallBPComplete[ breaks$year == year & breaks$site == siteList[j] ] <- TRUE
-		}			
+		}	#completeYearsFall loop
 			
-#		} #completeYears loop
-	} #year loop
+	} #completeYearsSpringOrFall loop
 } #site loop
 
 # add in means for missing BP. use the xBPWMean below to constrain the date range for estimating BP 2 
@@ -340,18 +358,33 @@ for (j in 1:nSites){
 #Add watershed or some spatial grouping to mean BPs.
 # adapt to do things by BP & HUC 8
 
+# Get the mean BPs for each site:
 meanBP <- ddply( breaks, .(site), summarise, meanSpringBP = mean(springBP,na.rm=T), meanFallBP = mean(fallBP,na.rm=T) )
 breaks$meanSpringBP <- NULL; breaks$meanFallBP <- NULL # in case we've merged before
 
 breaks <- merge( x=breaks, y= meanBP, all.x=T, by=c('site') )
 
+# Get the mean BPs for each HUC:
+#  Currently means over all site/year combos. Other option would be to average all site means.
+meanBPHUC8 <- ddply( breaks, .(HUC_8), summarise, meanSpringBPHUC8 = mean(springBP,na.rm=T), meanFallBPHUC8 = mean(fallBP,na.rm=T) )
+breaks$meanSpringBPHUC8 <- NULL; breaks$meanFallBPHUC8 <- NULL # in case we've merged before
+
+breaks <- merge( x=breaks, y= meanBPHUC8, all.x=T, by=c('HUC_8') )
+
+#Define the averages of the calculated breakpoints.
 meanSpringBP <- mean(breaks$meanSpringBP[is.finite(breaks$meanSpringBP)])
-meanFallBP <- mean(breaks$meanFallBP[is.finite(breaks$meanFallBP)])
+meanFallBP   <- mean(breaks$meanFallBP[is.finite(breaks$meanFallBP)])
 
-breaks$springBPWMean <- ifelse( is.na(breaks$springBP), breaks$meanSpringBP, breaks$springBP )
+#If the breakpoint doesn't exist, replace it with the HUC8 mean. (Same if it's been calculated as NaN.)
+breaks$springBPWMean <- ifelse( is.na(breaks$springBP), breaks$meanSpringBPHUC8, breaks$springBP )
+breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), breaks$meanSpringBPHUC8, breaks$springBPWMean )
+breaks$fallBPWMean   <- ifelse( is.na(breaks$fallBP), breaks$meanFallBPHUC8, breaks$fallBP )
+breaks$fallBPWMean   <- ifelse( !is.finite(breaks$fallBPWMean), breaks$meanFallBPHUC8, breaks$fallBPWMean )
+
+#If the breakpoint still doesn't exist, replace it with the overall mean. (Same if it's been calculated as NaN.)
+breaks$springBPWMean <- ifelse( is.na(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
 breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
-
-breaks$fallBPWMean <- ifelse( is.na(breaks$fallBP), breaks$meanFallBP, breaks$fallBP )
+breaks$fallBPWMean <- ifelse( is.na(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
 breaks$fallBPWMean <- ifelse( !is.finite(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
 
 # can have empty breakPoints if don't calculate a mean across years for each site in the ddply above
@@ -362,73 +395,99 @@ breaks$fallBPWMean  [is.na(breaks$fallBPWMean   )] <- maxCompleteDOYBP3
 ```
 
 ```{r summer bp}
-
 #====================================================================================================================
 #Segmented regression of water temperature to get breakpoint between ascending and descending temps by year and site:
 # summerBP or BP 2
 # can get bad bp2 estimates when water temp increases very rapidly in the spring. as of 11/15/13, including the middle 90% of the datapts between bp1 and bp3 to trim the ends 
 #====================================================================================================================
+
+#Defines the range over which the summerBP is determined:
 minCompleteDOYBP2 <- meanSpringBP
 maxCompleteDOYBP2 <- meanFallBP
-estimatedBP2 <- meanFallBP - meanSpringBP
 
-numBeforeCompleteBP2 <- round( ( maxCompleteDOYBP2-minCompleteDOYBP2 ) * 0.35 )
-numAfterCompleteBP2  <- round( ( maxCompleteDOYBP2-minCompleteDOYBP2 ) * 0.25 )
+#Determines how much data is needed before and after the estimated summerBP to apply the segmented regression:
+numBeforeCompleteBP2 <- round( ( maxCompleteDOYBP2-minCompleteDOYBP2 ) * 0.30)
+numAfterCompleteBP2  <- round( ( maxCompleteDOYBP2-minCompleteDOYBP2 ) * 0.20 )
+
+minRisingSlope  <- 0 # 0.05
+maxFallingSlope <- 0 # -0.05
 
 trimProp <- 0.05 # the proportion of obs btw bp1 and bp3 to trim for segmented
 
 segDF <- data.frame(site=NA,year=NA,dOY=NA,temp=NA,pred=NA)
 
+#Set up dataframe for abnormal sites:
 abnormalSiteYears <- data.frame(site=NA,year=NA)
 
 for (j in 1:nSites){
   
+  # j = which(siteList == "MEDMR_3MAINST33.26")
   curSite <- which(e$site == siteList[j])
 
   e1 <- e[curSite,]
   
+  curHUC8 <- e1$HUC_8[1]
+  
   for (year in unique(e1$year)){
-    
+
+    #Status:
     print(c('BP2',j,as.character(siteList[j]),year))
 
+    # Estimate the summerBP based on average HUC 8 breakpoints if available
+    if (!is.na(curHUC8)) {estimatedBP2 <- meanBPHUC8$meanFallBPHUC8[meanBPHUC8$HUC_8 == curHUC8] - meanBPHUC8$meanSpringBPHUC8[meanBPHUC8$HUC_8 == curHUC8]} else(estimatedBP2 <- meanFallBP - meanSpringBP)
+
+    #Select site/year:
     e3 <- e1[ e1$dOY >= minCompleteDOYBP2 & e1$dOY <= maxCompleteDOYBP2 & e1$year == year, ]
     
+    #Number of data points before/after estimatedBP2
     numBeforeBP2 <- length(which((e3$dOY[!is.na(e3$temp)] <= estimatedBP2) == TRUE))
     numAfterBP2  <- length(which((e3$dOY[!is.na(e3$temp)] >= estimatedBP2) == TRUE))
     
-    #If the number of points before and after the estimated mean summer breakpoint exists, proceed to calculate site specific breakpoint.
+    #Plot the raw data. If the criteria are met, save the summer breakpoint :
+    #---------------------------------------------------------------------------
+    png(filename=paste0(subGraphsDir, '/summerBP/summerBP_',e1$site[1],'_',year,'.png'),width=1000, height=600, bg="white")    
+    plot(e1$dOY[e1$year %in% year], e1$temp[e1$year %in% year],ylim=c(-5,25),xlim=c(0,366), pch = 19)
+    points(e1$dOY[e1$year %in% year], e1$airTemp[e1$year %in% year], col = "grey") 
+    
+    percent  <- d$PercentImpoundedOpen[d$site == e1$site[1]]
+    damCount <- d$TNC_DamCount        [d$site == e1$site[1]]
+    
+    title(main=paste(e1$site[1],"_",year, "  |  ", percent," % Impounded | ", damCount," dams"))
+    
+    #If the number of points before and after the estimated mean summer breakpoint exists, proceed to calculate site-specific breakpoint.
     if(numBeforeBP2 > 0 & numAfterBP2 > 0){
       
       bp1 <- breaks$springBPWMean[breaks$site == siteList[j] & breaks$year == year ]  #Use similar method to do BPmean by HUC
-      bp3 <- breaks$fallBPWMean[breaks$site == siteList[j] & breaks$year == year ]
+      bp3 <- breaks$fallBPWMean  [breaks$site == siteList[j] & breaks$year == year ]
       
       trim <- round((bp3-bp1) * trimProp)
       minDOY <- bp1 + trim
       maxDOY <- bp3 - trim
       
-      if(exists('out')) rm(out) 
+      #Segmented regression to get summerBP:
+      if(exists('out')) rm(out)
       dat <- e1[e1$year == year & e1$dOY >= minDOY & e1$dOY <= maxDOY,]
       tryCatch({out <- segmented( lm(temp~dOY, data=dat), 
-                                  seg.Z=~dOY, psi=list(dOY=c(200)))},error=function(e){cat("ERROR :",conditionMessage(e), "\n")})      
+                                  seg.Z=~dOY, psi=list(dOY=c(200)))},error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
 
-      #Plot and save summer breakpoint if the criteria are met:
-      #--------------------------------------------------------
-      png(filename=paste0(subGraphsDir, '/summerBP/summerBP_',e1$site[1],'_',year,'.png'),width=1000, height=600, bg="white")
-      plot(e1$dOY[e1$year %in% year], e1$temp[e1$year %in% year],ylim=c(-5,25),xlim=c(0,366))
-       
       if(exists('out')){
         
-        breaks$risingTemp  [breaks$year == year & breaks$site == siteList[j]] <- out$coeff[2]
-        breaks$fallingTemp [breaks$year == year & breaks$site == siteList[j]] <- out$coeff[3]
+        risingTempSlope  <- slope(out)$dOY[1]
+        fallingTempSlope <- slope(out)$dOY[2]
         
-        if( out$coeff[2] < 0 | out$coeff[3] > 0 & indexAbnormalSummerGraphs){
+        breaks$risingTemp  [breaks$year == year & breaks$site == siteList[j]] <- risingTempSlope
+        breaks$fallingTemp [breaks$year == year & breaks$site == siteList[j]] <- fallingTempSlope
+        
+        #If the slopes don't meet the criteria and you are making note of these sites, add them to the list:
+        if(risingTempSlope < minRisingSlope | fallingTempSlope > maxFallingSlope & indexAbnormalSummerGraphs){
           mark <- data.frame(siteList[j], year)
           names(mark) <- c('site', 'year')
-          abnormalSiteYears <- rbind(abnormalSiteYears, mark)       
+          abnormalSiteYears <- rbind(abnormalSiteYears, mark)
         }
-      
-        if(numBeforeBP2 >= numBeforeCompleteBP2 & numAfterBP2 >= numAfterCompleteBP2 & out$coeff[2] > 0 & out$coeff[3] < 0 ){
         
+        #If the rising and falling temp slopes meet the criteria, then calculate the 
+        if(numBeforeBP2 >= numBeforeCompleteBP2 & numAfterBP2 >= numAfterCompleteBP2 & risingTempSlope > minRisingSlope & fallingTempSlope < maxFallingSlope ){
+          
           # For making seg regression graphs in ggplot. 
           segDF <- rbind( segDF, cbind(site=siteList[j],year=year,dOY=dat$dOY[!is.na(dat$temp)],temp=dat$temp[!is.na(dat$temp)],pred=out$fitted.values) )
         
@@ -437,15 +496,45 @@ for (j in 1:nSites){
           
           plot(out,add=T,link=FALSE,lwd=2,col=2:3, lty=c(1),ylim=c(-5,25),xlim=c(0,366))  #Plot fits
           lines(out,col=2,pch=19,bottom=FALSE,lwd=2) #Plot peak point
+       
         }
       }# End 'out' loop
-    
-      title(main=paste(e1$site[1],"_",year))
-      dev.off()
-      
     }# End numBefore/After if statement
+    
+    dev.off()
+    
   }# End year loop
 }# End site loop
+
+#write.csv(breaks[,c('site','year','risingTemp', 'fallingTemp')], file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataOut/', sourceList, '/segRegressionSlopes.csv'))
+
+
+# Get the mean BPs for each site. 
+#     Used when  have a fall but no spring or summer BP and there are data in the spring
+meanBP2 <- ddply( breaks, .(site), summarise, meanSummerBP = mean(summerBP,na.rm=T) )
+breaks$meanSummerBP <- NULL # in case we've merged before
+
+breaks <- merge( x=breaks, y= meanBP2, all.x=T, by=c('site') )
+
+# Get the mean BPs for each HUC:
+#    Currently means over all site/year combos. Other option would be to average all site means.
+meanBP2HUC8 <- ddply( breaks, .(HUC_8), summarise, meanSummerBPHUC8 = mean(summerBP,na.rm=T) )
+breaks$meanSummerBPHUC8 <- NULL # in case we've merged before
+
+breaks <- merge( x=breaks, y= meanBP2HUC8, all.x=T, by=c('HUC_8') )
+
+#Define the averages of the calculated breakpoints.
+meanSummerBP <- mean(breaks$meanSummerBP[is.finite(breaks$meanSummerBP)])
+
+#If the breakpoint doesn't exist, replace it with the HUC8 mean. (Same if it's been calculated as NaN.)
+breaks$summerBPWMean <- ifelse( is.na(breaks$summerBP), breaks$meanSummerBPHUC8, breaks$summerBP )
+breaks$summerBPWMean <- ifelse( !is.finite(breaks$summerBPWMean), breaks$meanSummerBPHUC8, breaks$summerBPWMean )
+
+#If the breakpoint still doesn't exist, replace it with the overall mean. (Same if it's been calculated as NaN.)
+breaks$summerBPWMean <- ifelse( is.na(breaks$summerBPWMean), meanSummerBP, breaks$summerBPWMean )
+breaks$summerBPWMean <- ifelse( !is.finite(breaks$summerBPWMean), meanSummerBP, breaks$summerBPWMean )
+
+#breaks$summerBPWMean <- NULL 
 
 #----------------------------------------------------------------
 #Merge the breakpoints and quantiles with the existing dataframe:
@@ -456,28 +545,63 @@ et <- merge( x=e, y=breaks, by=c('year','site'),all.x=T)
 # need to sort for plotting pred
 segDF <- segDF[order(segDF$site,segDF$year,segDF$dOY),]
 
+```
 
 
-#Histogram of rising and falling limbs of segmented regression used in summer BP estimation.
-gRisingTemp  <- ggplot( breaks) + 
-  geom_histogram(aes(risingTemp ), binwidth = .01) + 
-  theme(strip.text.x = element_text(size=6)) +
-  scale_x_continuous(breaks = c(seq(from = -2, to = 2, by = .2)),
-                     labels = c(seq(from = -2, to = 2, by = .2))) +
-  ggtitle('Rising limb of seg-regression for SummerBP')
 
-gFallingTemp <- ggplot( breaks) + 
-  geom_histogram(aes(fallingTemp), binwidth = .01) + 
-  theme(strip.text.x = element_text(size=6)) +
-  scale_x_continuous(breaks = c(seq(from = -3, to = 2, by = .2)),
-                     labels = c(seq(from = -3, to = 2, by = .2))) +
-  ggtitle('Falling limb of seg-regression for SummerBP')
+```{r copied example}
+# Get the mean BPs for each site:
+meanBP <- ddply( breaks, .(site), summarise, meanSpringBP = mean(springBP,na.rm=T), meanFallBP = mean(fallBP,na.rm=T) )
+breaks$meanSpringBP <- NULL; breaks$meanFallBP <- NULL # in case we've merged before
 
-gHist <- arrangeGrob( gRisingTemp, gFallingTemp, ncol=1)
+breaks <- merge( x=breaks, y= meanBP, all.x=T, by=c('site') )
 
-ggsave(plot=gHist,file=paste0(subGraphsDir,'/segRegSlopesHistogram.png'),dpi=300,width=6,height=8, units='in', scale=2)
+# Get the mean BPs for each HUC:
+#  Currently means over all site/year combos. Other option would be to average all site means.
+meanBPHUC8 <- ddply( breaks, .(HUC_8), summarise, meanSpringBPHUC8 = mean(springBP,na.rm=T), meanFallBPHUC8 = mean(fallBP,na.rm=T) )
+breaks$meanSpringBPHUC8 <- NULL; breaks$meanFallBPHUC8 <- NULL # in case we've merged before
+
+breaks <- merge( x=breaks, y= meanBPHUC8, all.x=T, by=c('HUC_8') )
+
+#Define the averages of the calculated breakpoints.
+meanSpringBP <- mean(breaks$meanSpringBP[is.finite(breaks$meanSpringBP)])
+meanFallBP   <- mean(breaks$meanFallBP[is.finite(breaks$meanFallBP)])
+
+#If the breakpoint doesn't exist, replace it with the HUC8 mean. (Same if it's been calculated as NaN.)
+breaks$springBPWMean <- ifelse( is.na(breaks$springBP), breaks$meanSpringBPHUC8, breaks$springBP )
+breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), breaks$meanSpringBPHUC8, breaks$springBPWMean )
+breaks$fallBPWMean   <- ifelse( is.na(breaks$fallBP), breaks$meanFallBPHUC8, breaks$fallBP )
+breaks$fallBPWMean   <- ifelse( !is.finite(breaks$fallBPWMean), breaks$meanFallBPHUC8, breaks$fallBPWMean )
+
+#If the breakpoint still doesn't exist, replace it with the overall mean. (Same if it's been calculated as NaN.)
+breaks$springBPWMean <- ifelse( is.na(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
+breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
+breaks$fallBPWMean <- ifelse( is.na(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
+breaks$fallBPWMean <- ifelse( !is.finite(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
+
+# can have empty breakPoints if don't calculate a mean across years for each site in the ddply above
+# i.e. only data for one year in a site or no years have data before the spring cutoff or after the fall cutoff
+# in this case, just fill in the cutoffs, so the summer breakPoint can be calculated
+breaks$springBPWMean[is.na(breaks$springBPWMean )] <- minCompleteDOYBP1
+breaks$fallBPWMean  [is.na(breaks$fallBPWMean   )] <- maxCompleteDOYBP3
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```{r Index abnormal plots as defined by the segmented regression.}
 
@@ -491,7 +615,7 @@ if (indexAbnormalSummerGraphs) {
   abnormalPlots <- paste0('summerBP_', abnormalSiteYears$site, '_' , abnormalSiteYears$year)
 
   sapply(c(2:length(abnormalPlots)),FUN = function(x){
-    file.rename(from = paste0(abnormalPlots[x],'.png'), to = paste0(subGraphsDir,'/problemSites/', abnormalPlots[x],'.png'))})
+    file.copy(from = paste0(abnormalPlots[x],'.png'), to = paste0(subGraphsDir,'/problemSites/', abnormalPlots[x],'.png'))})
 }
 ```
 
@@ -612,13 +736,6 @@ et$slopeSegSlopeDiff <- et$slopeSeg - et$slope
 
 ```{r Make graphs of the results}
 
-#Distribution of breakpoints:
-boxplot(et$springBP,et$summerBP,et$fallBP,names=c("Spring","Summer","Fall"))
-
-hist(et$springBP)
-hist(et$summerBP)
-hist(et$fallBP)
-
 # Make graphs for each site
 #-------------------------
 if (makeSpringFallGraphs){
@@ -672,10 +789,92 @@ if (nrow(temp) > 0 ){
 } # Site loop
 } # if MakeSpringFallGraphs loop
 
+
+#----------------------
+#Plot up some raw data:
+#----------------------
+
+#Histogram of rising and falling limbs of segmented regression used in summer BP estimation.
+gRisingTemp  <- ggplot( breaks) + 
+  geom_histogram(aes(risingTemp ), binwidth = .01) + 
+  theme(strip.text.x = element_text(size=6)) +
+  scale_x_continuous(breaks = c(seq(from = -2, to = 2, by = .2)),
+                     labels = c(seq(from = -2, to = 2, by = .2))) +
+  ggtitle('Rising limb of seg-regression for SummerBP')
+
+gFallingTemp <- ggplot( breaks) + 
+  geom_histogram(aes(fallingTemp), binwidth = .01) + 
+  theme(strip.text.x = element_text(size=6)) +
+  scale_x_continuous(breaks = c(seq(from = -3, to = 2, by = .2)),
+                     labels = c(seq(from = -3, to = 2, by = .2))) +
+  ggtitle('Falling limb of seg-regression for SummerBP')
+
+gHist <- arrangeGrob( gRisingTemp, gFallingTemp, ncol=1)
+
+ggsave(plot=gHist,file=paste0(subGraphsDir,'/segRegSlopesHistogram.png'),dpi=300,width=6,height=8, units='in', scale=2)
+
+
+#Histogram of summerBPs.
+gSpringBP  <- ggplot( breaks) + 
+  geom_histogram(aes(springBP ), binwidth = .01) + 
+  theme(strip.text.x = element_text(size=6)) +
+  #scale_x_continuous(breaks = c(seq(from = -2, to = 2, by = .2)),
+  #                   labels = c(seq(from = -2, to = 2, by = .2))) +
+  ggtitle('SpringBP')
+
+gSummerBP <- ggplot( breaks) + 
+  geom_histogram(aes(summerBP), binwidth = .01) + 
+  theme(strip.text.x = element_text(size=6)) +
+  #scale_x_continuous(breaks = c(seq(from = -3, to = 2, by = .2)),
+  #                   labels = c(seq(from = -3, to = 2, by = .2))) +
+  ggtitle('SummerBP')
+
+gFallBP <- ggplot( breaks) + 
+  geom_histogram(aes(fallBP), binwidth = .01) + 
+  theme(strip.text.x = element_text(size=6)) +
+  #scale_x_continuous(breaks = c(seq(from = -3, to = 2, by = .2)),
+  #                   labels = c(seq(from = -3, to = 2, by = .2))) +
+  ggtitle('FallBP')
+
+gBPHistograms <- arrangeGrob( gSpringBP, gSummerBP, gFallBP,   ncol=1 )
+    
+ggsave(plot=gBPHistograms,file=paste(subGraphsDir,"/gBPHistograms.png",sep=''),dpi=300,width=6,height=8, units='in', scale=2)
+
+
+#Distribution of breakpoints:
+png(filename=paste0(subGraphsDir, '/BreakpointBoxplot.png'),width=1000, height=600, bg="white")
+boxplot(et$springBP,et$summerBP,et$fallBP,names=c("Spring","Summer","Fall"))
+dev.off()
+
+
 ```
 
 ```{r save e}
-  save(e,               file=paste0(dataOutDir, sourceList, '/', 'e_' , sourceList, '.RData'))
-  save(et,segDF,slopes, file=paste0(dataOutDir, sourceList, '/', 'et_', sourceList, '.RData'))
+  save(e,                       file=paste0(dataOutDir, sourceList, '/', 'e_' , sourceList, '.RData'))
+  save(et,segDF,slopes, breaks, file=paste0(dataOutDir, sourceList, '/', 'et_', sourceList, '.RData'))
 
 ```
+
+
+#Stuff removed from Ben's code:
+
+Section 6: Data Prep:
+---------------------
+#scaled flow by site
+# get the zScores 'manually'
+bySite <- ddply(e, .(site), summarise, meanFlowBySite=mean(flow,na.rm=T),stdFlowBySite=sd(flow,na.rm=T))
+e <- merge( x=e, y=bySite, all.x=T )
+e$flowZScore <- (e$flow-e$meanFlowBySite)/e$stdFlowBySite
+
+#Across site - shouldn't use for stats
+#et$flowScaled <- scale(et$flow)
+
+e <- e[order(e$count),]
+
+#pairs(e[,c('temp1','airTemp1','rain','flow','prcp','srad','vp','swe','dayl','dOY')])
+#take a look at the raw daymet data
+
+# get residual from a loess smooth across years, do it this way to deal with NAs
+e$lSradResid <- e$srad-predict(loess(srad~dOY, data=e ),e$dOY)
+e$lVpResid <- e$vp-predict(loess(vp~dOY, data=e ),e$dOY)
+e$lSweResid <- e$swe-predict(loess(swe~dOY, data=e ),e$dOY)

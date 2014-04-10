@@ -12,6 +12,7 @@
 #========================================================================================================
 
 rm(list=setdiff(ls(), c("Catchments")))
+
 library(sp)
 library(rgdal)
 library(rgeos)
@@ -19,23 +20,26 @@ library(maptools)     # loads sp library too
 library(chron)
 library(ncdf)
 
+baseDir <- 'C:/KPONEIL/GitHub/projects/'
+
+
 #Load the function that indexes daymet tiles based on a lat/lon point:
-source("C:/KPONEIL/USGS/Scripts/R/StreamTemp/indexDaymetTileByLatLon.R")
+source(paste0(baseDir, 'temperatureProject/code/functions/indexDaymetTileByLatLon.R'))
 #==================================================================================================================
 #                             Read in spatial data
 #==================================================================================================================
 
 proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
 
-proj4.Daymet <- "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 +lon_0=-100 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=lonlat +no_defs "
-proj4.NHDLambert <- "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 +lon_0=-100 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83  +units=m +no_defs "
+#proj4.Daymet <- "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 +lon_0=-100 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=lonlat +no_defs "
+#proj4.NHDLambert <- "+proj=lcc +lat_1=25 +lat_2=60 +lat_0=42.5 +lon_0=-100 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83  +units=m +no_defs "
 
 #Catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/NENY_NHDCatchment_Lambert.shp", proj4string=CRS(proj4.NHDLambert))
 Catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/NENY_NHDCatchment.shp", proj4string=CRS(proj4.NHD))
 
-Source <- "MEDMR"
+dataSource <- "VTFWS"
 
-load("C:/KPONEIL/USGS/GIS/Covariate Stats/DelineatedCatchments/DelineatedCatchments_NHDPlus_NENY.RData")
+load(paste0(baseDir, 'temperatureProject/dataIn/delineatedCatchments/DelineatedCatchments_NHDPlus_NENY.RData'))
 DelineatedCatchmentsMaster <- NENYDelineatedCatchments
 MasterLength <- length(DelineatedCatchmentsMaster)
 
@@ -43,12 +47,12 @@ MasterLength <- length(DelineatedCatchmentsMaster)
 #                             Read in Site data
 #==================================================================================================================
 
-setwd("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis")
+setwd(paste0(baseDir, 'temperatureProject/dataIn/', dataSource))
 
-load(paste0("StreamTempData_",   Source, "sites.RData"))
-load(paste0("NewCovariateData_", Source, "sites.RData"))
+load(paste0("streamTempData_",   dataSource, ".RData"))
+load(paste0("covariateData_", dataSource, ".RData"))
 
-Sites <- unique(master.data$site)
+Sites <- unique(masterData$site)
 
 #Daymet variables you want:
 Variables <- c("prcp")  #, "dayl", "srad", "swe", "tmax", "tmin", "vp")
@@ -69,7 +73,8 @@ for (i in 1:numTiles){
   
   #Now open the NetCDF with the known location:
   #--------------------------------------------
-  NCDF <- open.ncdf(paste0("C:/KPONEIL/SourceData/Projected/DAYMET/Daily/", Tiles[i], "_2010/prcp.nc"))    #netcdf
+  NCDF <- open.ncdf(paste0("F:/KPONEIL/SourceData/Projected/DAYMET/Daily/", Tiles[i], "_2010/prcp.nc"))    #netcdf   
+         
   #Dimension limits of each of the variables we'll use:
   #----------------------------------------------------
   start1 = c(1,1)
@@ -104,7 +109,7 @@ for ( i in 1:length(Sites)){
   #----------------------------------------------------------------------------------
   #Get the catchment polygon:
   #----------------------------------------------------------------------------------
-  featureID <- covariate.data$FEATUREID[covariate.data$site %in% Sites[i]]
+  featureID <- covariateData$FEATUREID[covariateData$site %in% Sites[i]]
   features <- DelineatedCatchmentsMaster[[which(sapply(c(1:MasterLength),FUN = function(x){DelineatedCatchmentsMaster[[x]][1]==featureID})==TRUE)]]
   
   CatchmentShape <- Catchments[Catchments$FEATUREID %in% features,]
@@ -120,8 +125,8 @@ for ( i in 1:length(Sites)){
   #----------------------------------------------------------------------------------
   if(nrow(inside) == 0 ){
     
-    TempLat <- covariate.data$Latitude [covariate.data$site %in% Sites[i]]
-    TempLon <- covariate.data$Longitude[covariate.data$site %in% Sites[i]]
+    TempLat <- covariateData$Latitude [covariateData$site %in% Sites[i]]
+    TempLon <- covariateData$Longitude[covariateData$site %in% Sites[i]]
     
     distances <- spDistsN1(MasterCoordsMatrix, c(TempLon, TempLat), longlat = TRUE)
     MinDist <- min(distances)
@@ -162,7 +167,7 @@ for ( i in 1:length(Sites)){
   #----------------------------------------------------------------------------------
   #Link record with catchment area
   #----------------------------------------------------------------------------------
-  CurRecord <- master.data[which(master.data$site == Sites[i]),]
+  CurRecord <- masterData[which(masterData$site == Sites[i]),]
   CurRecord <- CurRecord[which(CurRecord$year < 2013),]
   
   BegYr <- min(CurRecord$year)
@@ -174,7 +179,7 @@ for ( i in 1:length(Sites)){
       
       for ( t in 1:length(SubTiles)){
   
-        NCDF <- open.ncdf(paste0("C:/KPONEIL/SourceData/Projected/DAYMET/Daily/", SubTiles[t], "_", year,"/", Variables[j], ".nc"))    #netcdf
+        NCDF <- open.ncdf(paste0("F:/KPONEIL/SourceData/Projected/DAYMET/Daily/", SubTiles[t], "_", year,"/", Variables[j], ".nc"))    #netcdf
         #Dimension limits of each of the variables we'll use:
         #----------------------------------------------------
         start1 = c(1,1)
@@ -236,19 +241,18 @@ print(paste0((end.time-start.time)/3600, " hours"))
 #Merge data in with other daymet and stream temp dataframes:
 #===========================================================
 
-
 MergeCols <- c('site', 'year', 'dOY', 'prcp')
 
 UpstreamVariables <- FullRecord[,names(FullRecord) %in% MergeCols]
 
-load(paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateData_", Source, "sites.RData"))
-master.data <- merge(master.data, UpstreamVariables, by = c('site', 'year', 'dOY'), all.x = T)
+load(paste0(baseDir, 'temperatureProject/dataIn/', dataSource, '/streamTempSitesObservedClimateData_',dataSource, '_NeedPrcp.RData'))
+
+masterData <- merge(masterData, UpstreamVariables, by = c('site', 'year', 'dOY'), all.x = T)
 
 #Check for reasonable NA count. (Don't include stream temperature column.)
-length(which(is.na(master.data[,-7])))
+length(which(is.na(masterData[,-7])))
 
-
-save(master.data, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateData_", Source, "sites.RData"))
+save(masterData, file = paste0(baseDir, 'temperatureProject/dataIn/', dataSource, '/streamTempSitesObservedClimateData_',dataSource, '.RData'))
 
 
 
