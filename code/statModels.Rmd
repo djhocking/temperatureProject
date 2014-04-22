@@ -21,13 +21,16 @@ library(foreign)
 library(maptools)
 library(gridExtra)
 
-baseDir <- 'C:/KPONEIL/'
+setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
 
-dataInDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataIn/')
-dataOutDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataOut/')
-graphsDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/graphs/')
+baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
 
-source(paste0(baseDir, 'GitHub/projects/temperatureProject/code/functions/temperatureModelingFunctions.R'))
+dataInDir <- paste0(baseDir, 'dataIn/')
+dataOutDir <- paste0(baseDir, 'dataOut/')
+graphsDir <- paste0(baseDir, 'graphs/')
+
+source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
 
 ```
 
@@ -36,7 +39,7 @@ Which agencies do you want to pull data from?
 
 #If removeSelectSites = TRUE, then the file with the list of sites needs to be specified.
 removeSelectSites <- T
-sitesToRemove <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataIn/sitesToRemoveAllNE.csv')
+sitesToRemove <- paste0(baseDir, 'dataIn/sitesToRemoveAllNE.csv')
 
 #Do you want all of the plots made?
 makePlots <- T

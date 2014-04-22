@@ -20,13 +20,16 @@ library(MASS)
 library(lme4)
 library(DataCombine) # for the slide function
 
-baseDir <- 'C:/KPONEIL/'
+baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'                           # Kyle
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
+baseDir <- 'D:/GitHub/projects/temperatureProject/'                                   # Ben
 
-dataInDir <-  paste0(baseDir, 'GitHub/projects/temperatureProject/dataIn/')
-dataOutDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataOut/')
-graphsDir <-  paste0(baseDir, 'GitHub/projects/temperatureProject/graphs/')
+dataInDir <- paste0(baseDir, 'dataIn/')
+dataOutDir <- paste0(baseDir, 'dataOut/')
+graphsDir <- paste0(baseDir, 'graphs/')
 
-source(paste0(baseDir, 'GitHub/projects/temperatureProject/code/functions/temperatureModelingFunctions.R'))
+source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
+setwd(baseDir)
 ```
 
 Which agencies do you want to pull data from?
@@ -53,7 +56,7 @@ dataSource <- sourceNames[sourceChoice == T]
 
 sourceList <- paste0(paste0(dataSource, collapse = '_'))#, '_', Sys.Date())
 
-setwd(paste0(baseDir, 'GitHub/projects/temperatureProject/'))
+#setwd(paste0(baseDir, 'GitHub/projects/temperatureProject/'))
 
 ```
 
@@ -63,8 +66,8 @@ reRunBP <- T
 
 # Will need to specify date of creation for this to work:
 if( !reRunBP ) {
-  load(file=paste(baseDir, 'GitHub/projects/temperatureProject/e_', sourceList, '.RData',sep=''))
-  load(file=paste(baseDir, 'GitHub/projects/temperatureProject/et_', sourceList, '.RData',sep=''))
+  load(file=paste(baseDir, 'e_', sourceList, '.RData',sep=''))
+  load(file=paste(baseDir, 'et_', sourceList, '.RData',sep=''))
 }
 
 ```
@@ -212,6 +215,7 @@ e <- e[order(e$count),]
 #table( e$year,e$site,is.na( e$temp ) )
 ```
 
+
 ```{r Create the breaks dataframe}
 
 breaks <- data.frame(array(NA,c(nrow(siteYearCombos),8)))
@@ -247,6 +251,7 @@ for ( i in 1:nrow(siteYearCombos)){
 }  
 
 ```
+
 
 ```{r Spring/fall bp}
 
@@ -592,6 +597,58 @@ breaks$fallBPWMean  [is.na(breaks$fallBPWMean   )] <- maxCompleteDOYBP3
 
 
 
+
+
+
+
+```{r Create breaks using bfast}
+library(bfast)
+
+eYear <- e1[e1$year == year, ] 
+
+     # use bfast to get breakpoints
+     bps <- getBfastBP1Or3(eYear,year,1,3) # 1 for spring, 3 for fall
+     plot(bps[[2]],main=paste(siteList[j],year))
+     breaks$fallBPBfast[ breaks$year == year & breaks$site == siteList[j] ] <- bps[[1]]
+
+
+getBfastBP1Or3 <- function(dat,year,bpNum,minSegSize){
+  
+  # remove leap days,bfastts doesn't work with them              
+  tmp <- dat[ format(dat$date, '%m %d') != "02 29", ]
+  
+  #  fill in all the dates 
+  ets2 <- bfastts(data=tmp$tempIndex, 
+                  dates = tmp$date,
+                  type="irregular") 
+
+  # need to interpolate missing values, fill in NAs
+  ets2 <- na.approx(ets2)
+
+  if(bpNum == 1) ets2a <- window(ets2, start=c(year,1),end = c(year,round(365/2)))
+  if(bpNum == 3) ets2a <- window(ets2, start = c(year,round(365/2)))
+  
+  # force a frequency. bfast doesn't work without a frequency
+  # 12 is arbitrary 
+  ets3 <- ts(ets2a,frequency=12)
+
+  ha <- minSegSize/length(ets3) #minimum segement size is minSegSize
+
+  eb <- bfast(ets3,h=ha,max.iter=1,season="none")
+ 
+  ebBP <- eb$output[[1]]$Vt.bp     # indexed by row # in ets3, which is not dOY
+  #b <- ebBP + start(ets2)[[2]] - 1  # adjust to dOY
+ 
+  # pull out breakpoints
+  #  biggestDiffIndex <- order(diff(b[[y]]))[length(b[[y]]) - 1] 
+  if(bpNum == 1) bp <-  max(ebBP + start(ets2)[[2]] - 1)
+  if(bpNum == 3) bp <-  min(ebBP + start(ets2a)[[2]] - 1)
+  
+  return(list(bp,eb))
+  
+}
+
+```
 
 
 
