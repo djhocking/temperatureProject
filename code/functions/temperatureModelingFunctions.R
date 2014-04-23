@@ -142,3 +142,40 @@ makeBiasMap <- function (d) {
     #ggtitle( as.character(y)))
   return(map)
 }
+
+
+getBfastBP1Or3 <- function(dat,year,bpNum,minSegSize){
+  
+  # remove leap days,bfastts doesn't work with them              
+  tmp <- dat[ format(dat$date, '%m %d') != "02 29", ]
+  
+  #  fill in all the dates 
+  ets2 <- bfastts(data=tmp$tempIndex, 
+                  dates = tmp$date,
+                  type="irregular") 
+  
+  # need to interpolate missing values, fill in NAs
+  ets2 <- na.approx(ets2)
+  
+  if(bpNum == 1) ets2a <- window(ets2, start=c(year,1),end = c(year,round(365/2)))
+  if(bpNum == 3) ets2a <- window(ets2, start = c(year,round(365/2)))
+  
+  # force a frequency. bfast doesn't work without a frequency
+  # 12 is arbitrary 
+  ets3 <- ts(ets2a,frequency=12)
+  
+  ha <- minSegSize/length(ets3) #minimum segement size is minSegSize
+  
+  eb <- bfast(ets3,h=ha,max.iter=1,season="none")
+  
+  ebBP <- eb$output[[1]]$Vt.bp     # indexed by row # in ets3, which is not dOY
+  #b <- ebBP + start(ets2)[[2]] - 1  # adjust to dOY
+  
+  # pull out breakpoints
+  #  biggestDiffIndex <- order(diff(b[[y]]))[length(b[[y]]) - 1] 
+  if(bpNum == 1) bp <-  max(ebBP + start(ets2)[[2]] - 1)
+  if(bpNum == 3) bp <-  min(ebBP + start(ets2a)[[2]] - 1)
+  
+  return(list(bp,eb))
+  
+}
