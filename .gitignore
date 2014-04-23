@@ -5,7 +5,6 @@ modelPredictionTimeseries/
 .Rproj.user
 .Rhistory
 .RData
-*.png
 *.jpg
 *.jpeg
 *.pdf
