@@ -1,3 +1,5 @@
+graphs/*
+!graphs/shared/
 maps/
 UMassWork/
 DaymetClimateData/
@@ -11,5 +13,3 @@ modelPredictionTimeseries/
 *.tiff
 *.tif
 *.eps
-!graphs/shared/*
-graphs/*
