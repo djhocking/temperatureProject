@@ -24,6 +24,13 @@ indexDaymetTileByLatLon <- function(SiteLat, SiteLon){
 
 
 
+#Test branch1 changes
+
+
+C <- 4
+
+
+
 
 #Test to see how merging branches works
 
@@ -32,7 +39,10 @@ indexDaymetTileByLatLon <- function(SiteLat, SiteLon){
 
 
 
+
 #testBranch 2 changes
 
 
 B <- 3
+
+
