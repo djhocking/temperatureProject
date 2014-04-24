@@ -12,3 +12,5 @@ modelPredictionTimeseries/
 *.tiff
 *.tif
 *.eps
+graphs/
+!shared
