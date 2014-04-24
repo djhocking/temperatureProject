@@ -21,28 +21,3 @@ indexDaymetTileByLatLon <- function(SiteLat, SiteLon){
 
 }
 # ** Assumed, but not explicitly checked.
-
-
-
-#Test branch1 changes
-
-
-C <- 4
-
-
-
-
-#Test to see how merging branches works
-
- A <- 77
-
-
-
-
-
-#testBranch 2 changes
-
-
-B <- 3
-
-
