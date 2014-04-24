@@ -21,3 +21,11 @@ indexDaymetTileByLatLon <- function(SiteLat, SiteLon){
 
 }
 # ** Assumed, but not explicitly checked.
+
+
+
+
+#Test to see how merging branches works
+
+ A <- 77
+

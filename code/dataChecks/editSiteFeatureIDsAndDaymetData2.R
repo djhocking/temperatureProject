@@ -1,14 +1,14 @@
 #Author:
 #  Kyle O'Neil
 #Created:
-#  12/15/13
+#  04/23/14
 #Last Updated:
-#  01/15/14
+#  04/24/14
 #Language:
 #	 R
 #Description:
-#  This code is a modification of "DayMetNetCDF.R" that calculates the spatial average of upstream climate
-#   climate data for the sites of interest.
+#  This code is used after site locations are checked against NHDplus catchments and changed. It loops
+#   through all of the sites replacing the upstream daymet values with the corrected timeseries.
 #========================================================================================================
 
 rm(list=setdiff(ls(), c("Catchments")))
@@ -119,7 +119,7 @@ MasterCoordsMatrix <- MasterCoords
 MasterCoords <- as.data.frame(MasterCoords)
 
 #==================================================================================================================
-#                               Loop through siteList$site and NetCDFs, getting data.
+#                               Loop through the sites and NetCDFs, getting data.
 #==================================================================================================================
 
 start.time <- proc.time()[3]
@@ -259,18 +259,33 @@ print(paste0((end.time-start.time)/3600, " hours"))
 save(FullRecord, file = paste0('C:/KPONEIL/temporary/FullRecord.RData'))
 
 
+# Remove old prcp column and rename new one
+names(FullRecord)[which(names(FullRecord) == 'prcp.y')] <- 'prcp'
+FullRecord <- FullRecord[,-which(names(FullRecord) == 'prcp.x')]
+
+
+for ( i in 1:length(sourceNames)){
+
+  load(paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/',sourceNames[i],'/streamTempSitesObservedClimateData_', sourceNames[i], '.RData'))
+  
+  #section to keep
+  md  <- masterData[!masterData$site %in% siteList$site,]
+  
+  #replacents
+  rep <- FullRecord[FullRecord$site %in% siteList$site[siteList$agency == sourceNames[i]],]
+  
+  masterData <- rbind(md, rep)
+  
+  save( masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/',sourceNames[i],'/streamTempSitesObservedClimateData_', sourceNames[i], '.RData'))
+  
+}
 
 
 
 
 
-
-
-
-
-
-
-
+head(masterData)
+dim(masterData)
 
 
 
