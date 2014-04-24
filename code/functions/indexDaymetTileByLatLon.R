@@ -29,3 +29,10 @@ indexDaymetTileByLatLon <- function(SiteLat, SiteLon){
 
  A <- 77
 
+
+
+
+#testBranch 2 changes
+
+
+B <- 3
