@@ -132,7 +132,7 @@ validateModel <- function ( model, d, vd ) {
 makeBiasMap <- function (d) {
   library(ggmap)
   #map.center <- geocode("Hartford, CT")
-  map.center <- geocode("Bangor, ME")
+  map.center <- geocode("Springfield, MA")
   baseMap <- qmap(c(lon=map.center$lon, lat=map.center$lat), source="google", zoom=8)
   map <- baseMap + geom_point(aes(x=lon, y=lat, 
                                   size=(biasMeanAbs),

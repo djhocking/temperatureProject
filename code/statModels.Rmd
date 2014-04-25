@@ -24,7 +24,7 @@ library(gridExtra)
 setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
 
 baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
-baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -55,7 +55,7 @@ NHFG   <- T
 NHDES  <- T
 USFS   <- T
 VTFWS  <- T
-MEDMR  <- T
+MEDMR  <- F
 MTUSGSYellowstone <- F
 MTUSGSGlacier <- F
 
@@ -72,13 +72,15 @@ sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS'
   
 dataSource <- sourceNames[sourceChoice == T]
 
-sourceList <- paste0(paste0(dataSource, collapse = '_'))
+#sourceList <- paste0(paste0(dataSource, collapse = '_'))
+sourceList <- paste0(paste0(dataSource, collapse = '_'), '_2014-04-24')
 
 #Load "et" for the agencies:
 load(paste0(dataOutDir, sourceList,  '/et_', sourceList, '.RData'))
 
+
 #Pull Lat/Lon so it doesn't get doubled up
-et <- et[,-which(names(et) %in% c('Latitude', 'Longitude'))]
+et <- et[,-which(names(et) %in% c('Latitude', 'Longitude', 'StreamOrder', 'HUC_4', 'HUC_8.x', 'HUC_8.y', 'HUC_12', 'agency'))]
 
 #Load in covariate data to merge into slopes df [no day data]
 for ( i in 1:length(dataSource)){
@@ -99,8 +101,9 @@ for ( i in 1:length(dataSource)){
 masterData    <- newDay
 covariateData <- covs
 
+
 #Merge climate data into main dataframe:
-et <- merge(et, masterData, by = c('site', 'year', 'dOY'), all.x=T, sort = F )
+et <- merge(et, masterData, by = c('site', 'date', 'year', 'dOY'), all.x=T, sort = F )
 
 et$flow <- NA
 et$tAirMin <- et$tmin; et$tAirMax <- et$tmax
@@ -205,21 +208,26 @@ if(makePlots) {
 # Don't use "scale" because it creates a data type with attributes that make is difficult to use predict
 
 # Log scale swe before splitting into segments:
-et$sweL <- log(et$swe + 0.001)
+et$sweL  <- log(et$swe  + 0.001)
+et$prcpL <- log(et$prcp + 0.001)
+
 
 # Split dataframe into segments:
 et2 <- et[et$segment %in% 2,]
 et3 <- et[et$segment %in% 3,]
 
 # Scale daymet vaiables in segment 2:
-et2$daylS <- (et2$dayl - mean(et2$dayl,na.rm=T)) / sd(et2$dayl, na.rm=T)
-et2$sradS <- (et2$srad - mean(et2$srad,na.rm=T)) / sd(et2$srad, na.rm=T)
-et2$sweLS <- (et2$sweL - mean(et2$sweL,na.rm=T)) / sd(et2$sweL, na.rm=T)
+et2$daylS  <- (et2$dayl  - mean(et2$dayl,na.rm=T) ) / sd(et2$dayl, na.rm=T )
+et2$sradS  <- (et2$srad  - mean(et2$srad,na.rm=T) ) / sd(et2$srad, na.rm=T )
+et2$sweLS  <- (et2$sweL  - mean(et2$sweL,na.rm=T) ) / sd(et2$sweL, na.rm=T )
+et2$prcpLS <- (et2$prcpL - mean(et2$prcpL,na.rm=T)) / sd(et2$prcpL, na.rm=T)
 
-# Scale daymet vaiables in segment 2:
-et3$daylS <- (et3$dayl - mean(et3$dayl,na.rm=T)) / sd(et3$dayl, na.rm=T)
-et3$sradS <- (et3$srad - mean(et3$srad,na.rm=T)) / sd(et3$srad, na.rm=T)
-et3$sweLS <- (et3$sweL - mean(et3$sweL,na.rm=T)) / sd(et3$sweL, na.rm=T) #Make sure all values aren't zero if you want to use this in stats models:
+
+# Scale daymet vaiables in segment 3:
+et3$daylS  <- (et3$dayl  - mean(et3$dayl,na.rm=T) ) / sd(et3$dayl, na.rm=T )
+et3$sradS  <- (et3$srad  - mean(et3$srad,na.rm=T) ) / sd(et3$srad, na.rm=T )
+et3$sweLS  <- (et3$sweL  - mean(et3$sweL,na.rm=T) ) / sd(et3$sweL, na.rm=T ) #Make sure all values aren't zero if you want to use this in stats models:
+et3$prcpLS <- (et3$prcpL - mean(et3$prcpL,na.rm=T)) / sd(et3$prcpL, na.rm=T)
 
 ```
 
@@ -288,11 +296,52 @@ m4 <- temp~(airTemp+airTempLagged1+airTempLagged2+
               )^2
 
 
+#Model 5: All main effects (add prcp)
+#---------------------------------------------------------------------
+m5 <- temp~airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS
+
+#Model 6: All two-way interactions (add prcp)
+#---------------------------------------------------------------------
+m6 <- temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS)^2
+
+#Model 3: Selected interactions
+#---------------------------------------------------------------------
+m7 <- temp~airTemp + airTempLagged1 + airTempLagged2 + LatitudeS + LongitudeS + BasinElevationMS + ReachSlopePCNTS + 
+             TotDASqKMLS + SurficialCoarseCLS + ForestS + AgricultureLS + WetlandOrWaterS + ImpoundmentsOpenSqKMLS +
+             daylS + sradS + sweLS + prcpLS +
+             airTemp*ReachSlopePCNTS + airTemp*TotDASqKMLS + airTemp*WetlandOrWaterS + 
+             airTemp*ImpoundmentsOpenSqKMLS + airTemp*sweLS + 
+             airTempLagged1 + airTempLagged1*ReachSlopePCNTS + airTempLagged1*TotDASqKMLS + airTempLagged1*WetlandOrWaterS + 
+             airTempLagged1*ImpoundmentsOpenSqKMLS + airTempLagged1*sweLS + 
+             airTempLagged2 + airTempLagged2*ReachSlopePCNTS + airTempLagged2*TotDASqKMLS + airTempLagged2*WetlandOrWaterS + 
+             airTempLagged2*ImpoundmentsOpenSqKMLS + airTempLagged2*sweLS + 
+             ReachSlopePCNTS*ImpoundmentsOpenSqKMLS + ReachSlopePCNTS*daylS + ReachSlopePCNTS*sradS +
+             TotDASqKMLS*ImpoundmentsOpenSqKMLS + TotDASqKMLS*daylS + TotDASqKMLS*sradS +
+             SurficialCoarseCLS*ForestS +   
+             ForestS*daylS + ForestS*sradS + ForestS*sweLS +
+             WetlandOrWaterS*daylS + WetlandOrWaterS*sradS + 
+             ImpoundmentsOpenSqKMLS*daylS + ImpoundmentsOpenSqKMLS*sradS + 
+             daylS*sweLS + 
+             sradS*sweLS +
+             prcpLS*BasinElevationMS
+
+
+
 #=================================================================================================================
 #                                                    Segment 2
 #=================================================================================================================
 #Validate for subset of sites:
-valData2 <- et2[et2$agency == 'MEDMR',]
+valData2 <- et2#[et2$agency == 'MAFW',]
 
 
 m0S2 <- lm(m0, data=et2)
@@ -330,27 +379,52 @@ if(validate){
   if(createBiasMaps) { makeBiasMap(vm4S2) }
 }
 
+m5S2 <- lm(m5, data=et2)
+#-----------------------
+if(validate){
+  vm5S2 <- validateModel( m5S2, et2, valData2 )
+  if(createBiasMaps) { makeBiasMap(vm5S2) }
+}
+
+m6S2 <- lm(m6, data=et2)
+#-----------------------
+if(validate){
+  vm6S2 <- validateModel( m6S2, et2, valData2 )
+  if(createBiasMaps) { makeBiasMap(vm6S2) }
+}
+
+
+m7S2 <- lm(m7, data=et2)
+#-----------------------
+if(validate){
+  vm7S2 <- validateModel( m7S2, et2, valData2 )
+  if(createBiasMaps) { makeBiasMap(vm7S2) }
+}
+
+
+
+
 
 #-------------------
 #Compare the models:
 #-------------------
 if(validate){
-  modelMetricsS2 <- rbind(vm0S2$means, vm1S2$means, vm2S2$means, vm3S2$means, vm4S2$means)
-  rownames(modelMetricsS2) <- c('vm0S2', 'vm1S2', 'vm2S2', 'vm3S2', 'vm4S2')
+  modelMetricsS2 <- rbind(vm0S2$means, vm1S2$means, vm2S2$means, vm3S2$means, vm4S2$means, vm5S2$means, vm6S2$means, vm7S2$means)
+  rownames(modelMetricsS2) <- c('vm0S2', 'vm1S2', 'vm2S2', 'vm3S2', 'vm4S2', 'vm5S2', 'vm6S2', 'vm7S2')
   modelMetricsS2 <- as.data.frame(modelMetricsS2)
-  modelMetricsS2$AIC.df <- AIC(m0S2,m1S2,m2S2,m3S2, m4S2)$df
-  modelMetricsS2$AIC <- AIC(m0S2,m1S2,m2S2,m3S2, m4S2)$AIC
-  modelMetricsS2$Sigma <- c(summary(m0S2)$sigma, summary(m1S2)$sigma,summary(m2S2)$sigma,summary(m3S2)$sigma,summary(m4S2)$sigma)
+  modelMetricsS2$AIC.df <- AIC(m0S2,m1S2,m2S2,m3S2,m4S2,m5S2,m6S2,m7S2)$df
+  modelMetricsS2$AIC    <- AIC(m0S2,m1S2,m2S2,m3S2,m4S2,m5S2,m6S2,m7S2)$AIC
+  modelMetricsS2$Sigma <- c(summary(m0S2)$sigma, summary(m1S2)$sigma,summary(m2S2)$sigma,summary(m3S2)$sigma,summary(m4S2)$sigma,summary(m5S2)$sigma,summary(m6S2)$sigma,summary(m7S2)$sigma)
   
   modelMetricsS2
-} else ( AIC(m0S2,m1S2,m2S2,m3S2, m4S2))
+} else ( AIC(m0S2,m1S2,m2S2,m3S2, m4S2, m5S2, m6S2, m7S2 ))
 
 
 
 #=================================================================================================================
 #                                                     Segment 3
 #=================================================================================================================
-valData3 <- et3[et3$agency == 'MEDMR',]
+valData3 <- et3#[et3$agency == 'MAFW',]
 
 
 m0S3 <- lm(m0, data=et3)
@@ -366,7 +440,6 @@ if(validate){
   vm1S3 <- validateModel( m1S3, et3, valData3 )
   if(createBiasMaps) { makeBiasMap(vm1S3) }
 }
-
 
 m2S3 <- lm(m2, data=et3)
 #-----------------------
@@ -391,18 +464,42 @@ if(validate){
   if(createBiasMaps) { makeBiasMap(vm4S3) }
 }
 
+m5S3 <- lm(m5, data=et3)
+#-----------------------
+if(validate){
+  vm5S3 <- validateModel( m5S3, et3, valData3 )
+   if(createBiasMaps) {makeBiasMap(vm5S3) }
+}
 
+m6S3 <- lm(m6, data=et3)
+#-----------------------
+if(validate){
+  vm6S3 <- validateModel( m6S3, et3, valData3 )
+  if(createBiasMaps) { makeBiasMap(vm6S3) }
+}
+
+m7S3 <- lm(m7, data=et3)
+#-----------------------
+if(validate){
+  vm7S3 <- validateModel( m7S3, et3, valData3 )
+  if(createBiasMaps) { makeBiasMap(vm7S3) }
+}
+
+#-------------------
 #Compare the models:
 #-------------------
 if(validate){
-  modelMetricsS3 <- rbind(vm0S3$means, vm1S3$means, vm2S3$means, vm3S3$means, vm4S3$means)
-  rownames(modelMetricsS3) <- c('vm0S3', 'vm1S3', 'vm2S3', 'vm3S3', 'vm4S3')
+  modelMetricsS3 <- rbind(vm0S3$means, vm1S3$means, vm2S3$means, vm3S3$means, vm4S3$means, vm5S3$means, vm6S3$means, vm7S3$means)
+  rownames(modelMetricsS3) <- c('vm0S3', 'vm1S3', 'vm2S3', 'vm3S3', 'vm4S3', 'vm5S3', 'vm6S3', 'vm7S3')
   modelMetricsS3 <- as.data.frame(modelMetricsS3)
-  modelMetricsS3$AIC.df <- AIC(m0S3,m1S3,m2S3,m3S3,m4S3)$df
-  modelMetricsS3$AIC <- AIC(m0S3,m1S3,m2S3,m3S3,m4S3)$AIC
-  modelMetricsS3$Sigma <- c(summary(m0S3)$sigma, summary(m1S3)$sigma,summary(m2S3)$sigma,summary(m3S3)$sigma,summary(m4S3)$sigma)
+  modelMetricsS3$AIC.df <- AIC(m0S3,m1S3,m2S3,m3S3,m4S3,m5S3,m6S3,m7S3)$df
+  modelMetricsS3$AIC    <- AIC(m0S3,m1S3,m2S3,m3S3,m4S3,m5S3,m6S3,m7S3)$AIC
+  modelMetricsS3$Sigma <- c(summary(m0S3)$sigma, summary(m1S3)$sigma,summary(m2S3)$sigma,summary(m3S3)$sigma,summary(m4S3)$sigma,summary(m5S3)$sigma,summary(m6S3)$sigma,summary(m7S3)$sigma)
+  
   modelMetricsS3
-} else(AIC(m0S3,m1S3,m2S3,m3S3,m4S3))
+} else ( AIC(m0S3,m1S3,m2S3,m3S3, m4S3, m5S5, m6S6, m7S6))
+
+
 
 
 # Want to save the metrics but it's a "list" so can't be a .csv for some reason...
@@ -418,10 +515,10 @@ if(validate){
 ```{r Choose models to use and predict stream temp values}
 #After model comparison, choose which model to use:
 
-finalModelS2  <- m2S2
-finalModelS3  <- m2S3
-finalValModS2 <- vm2S2
-finalValModS3 <- vm2S3
+finalModelS2  <- m6S2
+finalModelS3  <- m6S3
+finalValModS2 <- vm6S2
+finalValModS3 <- vm6S3
 
 # Predict stream temperatures:
 et2[,c('pred', 'lowr', 'upr')] <- predict (finalModelS2, newdata=et2, interval = "confidence") #default confidence interval (CI) = 95%
@@ -637,11 +734,6 @@ if ( makePlots ) {
 }
 ```
 
-  
-
-
-
-
 Predict values for selected catchements
 1) Predict breakpoints for UpstreamStats
 2) Merge bps into Daymet files
@@ -653,14 +745,14 @@ Predict values for selected catchements
 #Pick the area you want to predict for. This is done by selection of daymet tiles:
 # See Map Here: http://daymet.ornl.gov/sites/default/files/images/Tiles_on_LCC_projection_300dpi_labels.jpg
 
-DaymetTiles <- c(12116, 12117)
+DaymetTiles <- c(11754, 11755, 11934, 11935, 12114, 12115)
 
 Year <- 2010
 
 #Read in NHD catchments you want to predict for. This should fall within the boundaries of the daymet tiles above.
 proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
 
-catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/MEDMR_Region_NHDCatchment.shp", proj4string=CRS(proj4.NHD))
+catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/CTRiverStates_NHDCatchment.shp", proj4string=CRS(proj4.NHD))
 
 features <- catchments$FEATUREID
 
