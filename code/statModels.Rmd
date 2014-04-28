@@ -282,6 +282,18 @@ system.time(lmeTest5 <- lme(temp~airTemp+airTempLagged1+airTempLagged2+
 summary(lmeTest5)
 
 
+system.time(lmeTest5 <- lme(temp~airTemp+airTempLagged1+airTempLagged2+ daylS + sradS + sweLS, random = ~ 1 + airTemp+airTempLagged1+airTempLagged2|site, data = et, method = "ML", na.action = "na.omit", correlation = corCAR1(form = ~date|site)))
+summary(lmeTest5)
+
+rmse(resid(lmeTest5))
+mae(resid(lmeTest5))
+
+system.time(lmeTest5 <- lme(temp~airTemp+airTempLagged1+airTempLagged2+ daylS + sradS + sweLS, random = ~ 1 + airTemp+airTempLagged1+airTempLagged2|site, data = et, method = "ML", na.action = "na.omit", correlation = corCAR1(form = ~date|site)))
+summary(lmeTest5)
+
+rmse(resid(lmeTest5))
+mae(resid(lmeTest5))
+
 # Function that returns Root Mean Squared Error
 rmse <- function(error)
 {

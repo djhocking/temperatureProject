@@ -4,6 +4,7 @@ DaymetClimateData/
 modelPredictionTimeseries/
 .Rproj.user
 .Rhistory
+.Rapp.history
 .RData
 *.png
 *.jpg
