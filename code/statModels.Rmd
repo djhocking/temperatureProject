@@ -511,7 +511,6 @@ if(validate){
 
 ```
 
-
 ```{r Choose models to use and predict stream temp values}
 #After model comparison, choose which model to use:
 
@@ -525,11 +524,27 @@ et2[,c('pred', 'lowr', 'upr')] <- predict (finalModelS2, newdata=et2, interval =
 et3[,c('pred', 'lowr', 'upr')] <- predict (finalModelS3, newdata=et3, interval = "confidence") #default confidence interval (CI) = 95%
 
 # Predict air/stream temperature slopes:
-et2Slopes <- ddply( et2, .(site), summarize, slopeSeg2=coef(lm(pred ~ airTemp))[2])
+et2Slopes <- ddply( et2, .(site), summarize, slopeSeg2=coef(lm(pred ~ airTemp)))#[2])
 et3Slopes <- ddply( et3, .(site), summarize, slopeSeg3=coef(lm(pred ~ airTemp))[2])
 
 siteData <- merge(siteData, et2Slopes, by = 'site', all.x = T, sort = F)
 siteData <- merge(siteData, et3Slopes, by = 'site', all.x = T, sort = F)
+
+```
+
+```{r what the fuck is wrong with this}
+et9 <- et2[which(et2$site == et2$site[1]),]
+
+
+
+#One of the site has all NA values for prediction covariates making it unusable. Will need to find a way to remove these sites before prediction...
+
+
+et2[which(et2$site == 'CTDEP_1243'),]
+ddply( et2, .(site), airTemp[1])
+
+
+ddply( et9, .(site), summarize, slopeSeg2=coef(lm(pred ~ airTemp))[2])
 
 ```
 
