@@ -36,14 +36,14 @@ Which agencies do you want to pull data from?
 ```{r Choose data source}
 
 #Northeast
-CTDEP  <- F
+CTDEP  <- T
 MAFW   <- T
 MAUSGS <- T
-NHFG   <- F
-NHDES  <- F
-USFS   <- F
-VTFWS  <- F
-MEDMR  <- F
+NHFG   <- T
+NHDES  <- T
+USFS   <- T
+VTFWS  <- T
+MEDMR  <- T
 
 #Montana
 MTUSGSYellowstone <- F

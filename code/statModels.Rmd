@@ -20,6 +20,7 @@ library(ggmap)
 library(foreign)
 library(maptools)
 library(gridExtra)
+library(nlme)
 
 setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
 
@@ -38,14 +39,14 @@ Which agencies do you want to pull data from?
 ```{r Define data sources and other options}
 
 #If removeSelectSites = TRUE, then the file with the list of sites needs to be specified.
-removeSelectSites <- T
+removeSelectSites <- F
 sitesToRemove <- paste0(baseDir, 'dataIn/sitesToRemoveAllNE.csv')
 
 #Do you want all of the plots made?
-makePlots <- T
+makePlots <- F
 
 #Use validation?
-validate=T
+validate = T
 
 #Data source agencies?
 CTDEP  <- T
@@ -55,7 +56,7 @@ NHFG   <- T
 NHDES  <- T
 USFS   <- T
 VTFWS  <- T
-MEDMR  <- T
+MEDMR  <- F
 MTUSGSYellowstone <- F
 MTUSGSGlacier <- F
 
@@ -86,6 +87,7 @@ for ( i in 1:length(dataSource)){
   #Load covariate data to be merged into slopes df [no day data]
   load(paste0(dataInDir, dataSource[i], '/covariateData_', dataSource[i], '.RData')) #Fixed over time
   covariateData$agency <- paste(dataSource[i])
+  dim(covariateData)
   if ( i == 1) {covs <- covariateData} else (covs <- rbind(covs, covariateData))
   
   #Load daymet climate data to be merged into et:
@@ -222,6 +224,281 @@ et3$sradS <- (et3$srad - mean(et3$srad,na.rm=T)) / sd(et3$srad, na.rm=T)
 et3$sweLS <- (et3$sweL - mean(et3$sweL,na.rm=T)) / sd(et3$sweL, na.rm=T) #Make sure all values aren't zero if you want to use this in stats models:
 
 ```
+
+```{r rescale deymet variables without separating into different segments}
+et$sweL <- log(et$swe + 0.001)
+
+# Scale daymet vaiables in segment 2:
+et$daylS <- (et$dayl - mean(et$dayl,na.rm=T)) / sd(et$dayl, na.rm=T)
+et$sradS <- (et$srad - mean(et$srad,na.rm=T)) / sd(et$srad, na.rm=T)
+et$sweLS <- (et$sweL - mean(et$sweL,na.rm=T)) / sd(et$sweL, na.rm=T)
+
+ #Make sure all values aren't zero if you want to use this in stats models:
+
+
+```
+
+
+
+
+
+```{r regression with nlme sin-cos}
+library(nlme)
+
+system.time(lmeTest <- lme(temp ~ airTemp+
+                 LatitudeS+LongitudeS+
+                 ForestS, random = ~ 1|site, data = et, method = "ML", na.action = "na.omit")) # |year/site ??? 186s (3 min)
+summary(lmeTest)
+
+et$jDay <- as.numeric(as.Date(et$date.x, format= "%m/%d/%Y")) + 2440588
+
+# system.time(lmeTest2 <- lme(temp ~ airTemp+
+                 LatitudeS+LongitudeS+
+                 ForestS, random = ~ 1|site, data = et, method = "ML", na.action = "na.omit", correlation = corCAR1(form = ~jDay|site))) # crashed RStudio
+summary(lmeTest2)
+
+system.time(lmeTest3 <- lme(temp~airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS, random = ~ 1|site, data = et, method = "ML", na.action = "na.omit"))
+summary(lmeTest3)
+
+system.time(lmeTest4 <- lme(temp~airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS, random = ~ 1 + airTemp+airTempLagged1+airTempLagged2|site, data = et, method = "ML", na.action = "na.omit"))
+summary(lmeTest4)
+
+system.time(lmeTest5 <- lme(temp~airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS, random = ~ 1 + airTemp+airTempLagged1+airTempLagged2|site, data = et, method = "ML", na.action = "na.omit", correlation = corCAR1(form = ~date.x|site)))
+summary(lmeTest5)
+
+
+system.time(lmeTest5 <- lme(temp~airTemp+airTempLagged1+airTempLagged2+ daylS + sradS + sweLS, random = ~ 1 + airTemp+airTempLagged1+airTempLagged2|site, data = et, method = "ML", na.action = "na.omit", correlation = corCAR1(form = ~date|site)))
+summary(lmeTest5)
+
+rmse(resid(lmeTest5))
+mae(resid(lmeTest5))
+
+system.time(lmeTest5 <- lme(temp~airTemp+airTempLagged1+airTempLagged2+ daylS + sradS + sweLS, random = ~ 1 + airTemp+airTempLagged1+airTempLagged2|site, data = et, method = "ML", na.action = "na.omit", correlation = corCAR1(form = ~date|site)))
+summary(lmeTest5)
+
+rmse(resid(lmeTest5))
+mae(resid(lmeTest5))
+
+# Function that returns Root Mean Squared Error
+rmse <- function(error)
+{
+    sqrt(mean(error^2))
+}
+ 
+# Function that returns Mean Absolute Error
+mae <- function(error)
+{
+    mean(abs(error))
+}
+
+# Example of invocation of functions
+rmse(resid(lmeTest3))
+mae(resid(lmeTest3))
+
+### Analysis ###
+
+# "A word of warning is to not get too carried away with accounting for autocorrelation in your data: adding correlation structures with nlme is easy in principle but difficult in practice, and the benefits to model fitting of trying out different correlation structures are usually small, especially with models already containing different spatial or temporal levels.  With a large dataset and complicated model, adding autocorrelation can also add significantly to computation time: for the full temperature models I constructed for the Smokies, ML fitting took over a week on a high-end linux workstation." - Fridley: http://plantecology.syr.edu/fridley/bio793/mixed2.html
+# (sin(0.01721421*julian) + cos(0.01721421*julian))
+
+# STEP 1: Try full, beyond optimal model to get a working autocorrelation
+system.time(lmefull <- lme(temp ~ airTemp+airTempLagged1+airTempLagged2+
+                 LatitudeS+LongitudeS+
+                 ForestS+ 
+                 BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+                 WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+                 daylS + sradS + sweLS +
+                 sin(2*pi/360*dOY) + cos(2*pi/360*dOY), random = ~ sin(2*pi/360*dOY) + cos(2*pi/360*dOY) + airTemp + airTempLagged1 + airTempLagged2 + ForestS |site, data = et, method = "ML", na.action = "na.omit")) # |year/site ???
+summary(lmefull)
+
+# First try basic autoregressive decomposition - simple but less likely to work with an overparameterized model - same as ARMA(1,0) (~ minutes)
+system.time(lmefullCAR1 <- update(lmefull, correlation = corCAR1(form = ~dOY|site))) # or corCAR1(form = ~Julian|site) to have correlation across years at a site
+
+anova(lmefull, lmefullCAR1) 
+
+# STEP 2: Model the random effects while keeping beyond optimal fixed effects
+
+system.time(lmeR1CAR1 <- update(lmefullCAR1, random = ~1|block/iButton)) #  - random intercept
+
+system.time(lmeR2CAR1 <- update(lmefullCAR1, random = ~tot.sol|block/iButton)) # 
+
+system.time(lmeR3CAR1 <- update(lmefullCAR1, random = ~rad|block/iButton)) # 
+
+system.time(lmeR4CAR1 <- update(lmefullCAR1, random = ~ndvi|block/iButton)) # 
+
+system.time(lmeR5CAR1 <- update(lmefullCAR1, random = ~synmaxT|block/iButton)) # 
+
+AIC(lmefullCAR1, lmeR1CAR1, lmeR2CAR1, lmeR3CAR1, lmeR4CAR1, lmeR5CAR1)   
+
+system.time(lmeR6CAR1 <- update(lmefullCAR1, random = ~synmaxT + tot.sol|block/iButton)) # 
+
+anova(lmeR5CAR1, lmeR6CAR1)
+anova(lmeR5CAR1, lmefullCAR1)
+
+system.time(lmeR7CAR1 <- update(lmefullCAR1, random = ~synmaxT + rad|block/iButton)) # 
+
+anova(lmefullCAR1, lmeR7CAR1) # use lmeR7CAR1
+
+system.time(lmeR8CAR1 <- update(lmefullCAR1, random = ~synmaxT + ndvi|block/iButton)) # 
+
+AIC(lmefullCAR1, lmeR1CAR1, lmeR2CAR1, lmeR3CAR1, lmeR4CAR1, lmeR5CAR1, lmeR6CAR1, lmeR7CAR1, lmeR8CAR1)
+
+
+# Try various ARMA models to account for temporal autocorrelation of residuals
+# try p = 2 q = 1
+system.time(lmeR7ARMA21 <- update(lmeR7CAR1, correlation = corARMA(p = 2, q = 1, form = ~julian|block/iButton), na.action = na.exclude)) # 
+
+# try p = 1 q = 1
+system.time(lmeR7ARMA11 <- update(lmeR7CAR1, correlation = corARMA(p = 1, q = 1, form = ~julian|block/iButton), na.action = na.exclude)) #
+
+anova(lmeR7CAR1, lmeR7ARMA11)
+anova(lmefullCAR1, lmeR7ARMA11) # best beyond optimal model = lmeR7ARMA11
+
+# STEP 3: Model selection for level 1 variables
+# Level 1 covariates: synmaxT, swv, cwv, rad
+
+```
+
+
+
+```{r Dynamic Linear Models}
+# Reference: Petris et al. Dynamic Linear Models with R. Book
+
+library(dlm)
+
+```
+
+
+```{r GAMM}
+library(gamm4)
+
+
+library(mgcv)
+
+et$jDay <- as.numeric(as.Date(et$date.x, format = "%m%d%Y")) + 2440588
+et$jDayS <- (et$jDay - mean(et$jDay, na.rm = T)) / (sd(et$jDay, na.rm = T))
+
+system.time(m1Gamm <- gamm(temp ~ s(jDayS), data = et))
+summary(m1Gamm$gam, cor = FALSE)
+plot(m1Gamm$gam)
+summary(m1Gamm$lme)
+
+system.time(m2Gamm <- gamm(temp ~ s(jDay), data = et))
+summary(m2Gamm$gam, cor = FALSE)
+plot(m2Gamm$gam)
+summary(m2Gamm$lme)
+
+m2GammPred <- predict(m2Gamm$gam, se = FALSE, type = "response")
+plot(et$date.x, et$temp, cex = 0.1, pch = 16) # some water temps well below 0
+I <- order(et$date.x)
+lines(et$date.x[I], m2GammPred[I], col = 'red')
+
+system.time(m2Gamm <- gamm(temp ~ s(jDayS), data = et))
+summary(m2Gamm$gam, cor = FALSE)
+plot(m2Gamm$gam)
+summary(m2Gamm$lme)
+  
+system.time(m3Gamm <- gamm(temp ~  s(year) + s(dOY), random = list(site =~1), data = et)) # 13 min
+summary(m3Gamm$gam)
+summary(m3Gamm$lme)
+plot(m3Gamm$gam)
+
+system.time(m4Gamm <- gamm(temp ~ airTemp+airTempLagged1+airTempLagged2+ LatitudeS+LongitudeS+ ForestS+ BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ daylS + sradS + sweLS + s(year) + s(dOY), random = list(site =~1), data = et))
+summary(m4Gamm$gam)
+summary(m4Gamm$lme)
+plot(m4Gamm$gam)
+
+system.time(m5Gamm <- gamm(temp ~ airTemp+airTempLagged1+airTempLagged2+ LatitudeS+LongitudeS+ ForestS+ BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ daylS + sradS + sweLS + s(year) + s(dOY), random = list(site =~1 + airTemp), data = et)) # 26 min
+summary(m5Gamm$gam)
+summary(m5Gamm$lme)
+plot(m5Gamm$gam)
+
+system.time(m5GammIdent <- gamm(temp ~ airTemp+airTempLagged1+airTempLagged2+ LatitudeS+LongitudeS+ ForestS+ BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ daylS + sradS + sweLS + s(year) + s(dOY), random = list(site =~1 + airTemp), data = et, weights = varIdent(form =~1 | site))) # 10 min
+summary(m5GammIdent$gam)
+summary(m5GammIdent$lme)
+plot(m5GammIdent$gam)
+
+system.time(m5GammPow <- gamm(temp ~ airTemp+airTempLagged1+airTempLagged2+ LatitudeS+LongitudeS+ ForestS+ BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ daylS + sradS + sweLS + s(year) + s(dOY), random = list(site =~1 + airTemp), data = et, weights = varPower(form =~dOY))) # 37 min
+summary(m5GammPow$gam)
+summary(m5GammPow$lme)
+plot(m5GammPow$gam)
+
+system.time(m6Gamm <- gamm(temp ~ airTemp+airTempLagged1+airTempLagged2+ LatitudeS+LongitudeS+ ForestS+ BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ daylS + sradS + sweLS + s(year) + s(dOY), random = list(site =~1 + airTemp + s(dOY)), data = et)) #
+summary(m6Gamm$gam)
+summary(m6Gamm$lme)
+plot(m6Gamm$gam)
+
+
+# try separate smoothers for HUC 4 or HUC 8 or based on latitudinal groupings
+
+```
+
+
+```{r hts}
+library(hts)
+help('hts')
+vignette('hts')
+
+bts <- ts(5 + matrix(sort(rnorm(500)), ncol=5, nrow=100))
+y <- hts(bts, nodes=list(2, c(3, 2)))
+summary(y)
+
+ally <-  aggts(y) # Returns all series in the hierarchy
+somey <-  aggts(y, levels = c(0, 2)) # Returns time series at levels 0 and 2
+S <- smatrix(y) # Returns the summing matrix
+
+plot(y, levels = c(0, 1, 2))
+
+
+# Forecast 10-step-ahead using the bottom-up method
+infantforecast <- forecast(infantgts, h=10, method="bu")
+# plot the forecasts including the last ten historical years
+plot(infantforecast, include=10)
+
+allts_infant <- aggts(infantgts)
+allf <- matrix(, nrow=10, ncol=ncol(allts_infant))
+# Users can select their preferred time-series forecasting method
+# for each time series
+for(i in 1:ncol(allts_infant))
+  allf[,i] <- forecast(auto.arima(allts_infant[,i]), h=10, PI=FALSE)$mean
+allf <- ts(allf, start=2004)
+# combine the forecasts with the group matrix to get a gts object
+g <- matrix(c(rep(1, 8), rep(2, 8), rep(1:8, 2)), nrow = 2, byrow = T)
+y.f <- combinef(allf, groups = g)
+
+
+# set up the training sample and testing sample
+data <- window(infantgts, start=1933, end=1993)
+test <- window(infantgts, start=1994, end=2003)
+forecast <- forecast(data, h=10, method="bu")
+# calculate ME, RMSE, MAE, MAPE, MPE and MASE
+accuracy.gts(forecast, test)
+
+```
+
+
+```{r FDA}
+
+
+```
+
+
+
+
 
 
 ```{r regression temp~airTemp+...}
