@@ -53,23 +53,23 @@ mae <- function(error) {
   mean(abs(error))
 }
 
-et2 <- et[ , c("siteYear", "year", "site", "HUC_4", "HUC_8", "HUC_12", "TNC_DamCount", "date.x", "dOY", "temp", "airTemp", "prcp", "srad", "dayl", "swe", "airTempLagged1", "airTempLagged2", "Latitude", "Longitude", "Forest", "Agriculture", "Herbacious", "Developed", "Wetland", "Water", "Impervious", "BasinSlopeDEG", "HydrologicGroupAB", "SurficialCoarseC", "TotDASqKM", "BasinElevationM",  "CONUSWetland", "ImpoundmentsOpenSqKM", "ReachSlopePCNT")] # flow, "season",
-et2 <- na.omit(et2)
+et$day <- as.numeric(et$date.x)
 
-et2$day <- as.numeric(et2$date)
+et2 <- et[ , c("siteYear", "year", "site", "HUC_4", "HUC_8", "HUC_12", "TNC_DamCount", "date.x", "dOY", "day", "temp", "airTemp", "prcp", "srad", "dayl", "swe", "airTempLagged1", "airTempLagged2", "Latitude", "Longitude", "Forest", "Agriculture", "Herbacious", "Developed", "Wetland", "Water", "Impervious", "BasinSlopeDEG", "HydrologicGroupAB", "SurficialCoarseC", "TotDASqKM", "BasinElevationM",  "CONUSWetland", "ImpoundmentsOpenSqKM", "ReachSlopePCNT")] # flow, "season",
+et2 <- na.omit(et2)
 
 # Scale if necessary or desired
 # Zuur p. 485
 # log.dams isn't standardized because so far from normal
-etS <- cbind(et2[ ,c(1:9)],
-                      apply(X = et2[ ,10:dim(et2)[2]], MARGIN=2,
+etS <- cbind(et2[ ,c(1:10)],
+                      apply(X = et2[ ,11:dim(et2)[2]], MARGIN=2,
                             FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
 
 etS$month <- as.factor(format(as.Date(et2$date), format = "%m"))
 
 #ggplot(data = et2, aes(date, temp)) + geom_point(size = 1) + facet_wrap(~site)
 
-#-----------Check Correlations---------------
+#-----------Check Data Relationships---------------
 
 ## put histograms on the diagonal
 panel.hist <- function(x, ...) {
@@ -127,16 +127,6 @@ pairs(Pairs2, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.
 #-------------Analysis---------------------
 # STEP 1: Try full, beyond optimal model to get a working autocorrelation
 
-# run fixed effect only to get starting values
-lmFull <- lm(temp ~ airTemp+airTempLagged1+airTempLagged2+
-                 Latitude+Longitude+
-                 Forest+ Agriculture+
-                 BasinElevationM+ ReachSlopePCNT+  
-                 CONUSWetland+ SurficialCoarseC+
-                 dayl + srad + swe +
-                 sin(2*pi/360*dOY) + cos(2*pi/360*dOY), data = etS) # TotDASqKM+ImpoundmentsOpenSqKM+ 
-                 
-
 system.time(lmeFull <- lme(temp ~ airTemp+airTempLagged1+airTempLagged2+
                  Latitude+Longitude+
                  Forest+ Agriculture+
@@ -181,6 +171,7 @@ plot(ACF(lmeFull, maxLag = 400))
 plot(ACF(lmeFullAR1, maxLag = 400))
 plot(ACF(lmeFullAR2, maxLag = 400))
 
+<<<<<<< HEAD
 # Add month as a random effect
 
 system.time(lmeMonth <- lme(temp ~ airTemp+airTempLagged1+airTempLagged2+Latitude+Longitude+ prcp+Forest+ Agriculture+BasinElevationM+ ReachSlopePCNT+ TotDASqKM+CONUSWetland+SurficialCoarseC+ImpoundmentsOpenSqKM+dayl + srad + swe, random = list(site = ~ airTemp + airTempLagged1 + airTempLagged2, month = ~airTemp + airTempLagged1 + airTempLagged2), data = etS, na.action = "na.omit", control = lmeControl(msMaxIter =90, maxIter=200))) 
@@ -188,6 +179,19 @@ summary(lmeMonth)
 
 system.time(lmeMonthAR1 <- update(lmeMonth, correlation = corAR1() )) # 14.8 hours
 summary(lmeFullAR1)
+=======
+AIC(lmeFull, lmeFullAR1, lmeFullAR2)
+
+### Model has serious autocorrelation issues - try simple model but including date
+
+system.time(lmeSCDay <- lme(temp ~ airTemp+ 
+                 CONUSWetland+ SurficialCoarseC+
+                 sin(2*pi/360*dOY) + cos(2*pi/360*dOY), random = list(site = ~ airTemp + sin(2*pi/360*day)), data = etS, na.action = "na.omit"))
+summary(lmeSCDay)
+plot(ACF(lmeSCDay, maxLag = 400))
+
+system.time(lmeSCDayAR1 <- update(lmeSCDay, correlation = corAR1() ))
+>>>>>>> a56055c9e53f695726e5dd593396793d880d7331
 
 # consider adding season and/or 10 day average (or 10-day average min) temperature and interaction to account for winter.
 

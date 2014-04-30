@@ -107,8 +107,6 @@ lmeTest6b <- lme(temp ~ sin(2*pi*dayS) + cos(2*pi*dayS), data = et2, random = ~s
 cbind(coef(lmeTest6a), coef(lmeTest6b))
 cbind(fixef(lmeTest6a), fixef(lmeTest6b)) # not sure why these are different
 
-
-
 summary(lmeTest6a)
 summary(lmeTest6b)
 
@@ -123,6 +121,15 @@ qplot(fitted(lmeTest6AR1), resid(lmeTest6AR1))
 # Example of invocation of functions
 rmse(resid(lmeTest3))
 mae(resid(lmeTest3))
+
+
+x <- 1:360
+plot(x, 1*sin(pi*2/360*x) + 1*cos(pi*2/360*x), type = "l")
+lines(x, 1*sin(pi*2/360*x) + 0.5*cos(pi*2/360*x), col = 2)
+lines(x, 0.5*sin(pi*2/360*x) + 1*cos(pi*2/360*x), col = 3)
+lines(x, 0.5*sin(pi*2/360*x) + 0.5*cos(pi*2/360*x), col = 4)
+
+
 
 
 
