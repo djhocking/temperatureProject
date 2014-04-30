@@ -14,3 +14,4 @@ modelPredictionTimeseries/
 *.tif
 *.eps
 nlme.RData
+gamm.RData
