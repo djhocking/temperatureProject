@@ -15,3 +15,5 @@ modelPredictionTimeseries/
 *.eps
 nlme.RData
 gamm.RData
+bam.RData
+gamm2.RData
