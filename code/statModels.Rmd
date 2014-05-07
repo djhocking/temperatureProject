@@ -944,32 +944,103 @@ for ( i in 1:length(DaymetTiles)){
   
   
   
-  #Join to over-write FullRecord. Ok because the 
+  #Join to over-write FullRecord. Ok because we are just interested in segments 2 and 3:
   FullRecord <- rbind(FR2, FR3)
   
+  
+  
+  FullRecord <- FullRecord[FullRecord$site %in% unique(FullRecord$site)[1:10], ] # For testing
+  
+  
+  predict(finalModelS2, x, interval = "confidence")
+  
+  t <- ifelse( FR2$dOY == round(FR2$bp2), predict(finalModelS2, FR2, interval = "confidence"), NA)
+  
+  
   # Predict stream temperatures:
-  et2[,c('pred', 'lowr', 'upr')] <- predict (finalModelS2, newdata=et2, interval = "confidence") #default confidence interval (CI) = 95%
-  et3[,c('pred', 'lowr', 'upr')] <- predict (finalModelS3, newdata=et3, interval = "confidence") #default confidence interval (CI) = 95%
+#  et2[,c('pred', 'lowr', 'upr')] <- predict (finalModelS2, newdata=et2, interval = "confidence") #default confidence interval (CI) = 95%
+#  et3[,c('pred', 'lowr', 'upr')] <- predict (finalModelS3, newdata=et3, interval = "confidence") #default confidence interval (CI) = 95%
 
   #############################
   # predict daily water temp
   
-  FullRecord$predTemp <- ifelse( FullRecord$segment == 2,
+d <- predict(finalModelS2,x, interval = "confidence")
+
+predictSummerCI <- function(x){
+
+  x <- FullRecord
+  
+  
+  out[,c('pred','lwr','upr')] <- ifelse( x$segment == 2 & x$dOY == round(x$bp2),
+                                  predict(finalModelS2, x, interval = "confidence"),
+                                  ifelse( x$segment == 3 & x$dOY == round(x$bp2),
+                                  predict(finalModelS3, x, interval = "confidence"), NA ) )
+  
+  
+  ifelse( x$segment == 2 & x$dOY == round(x$bp2),
+    predict(finalModelS2, x, interval = "confidence"),
+    ifelse( x$segment == 3 & x$dOY == round(x$bp2),
+    predict(finalModelS3, x, interval = "confidence"), NA ) )
+  
+  names(out) <- 
+  
+  return(out[!is.na(out$pred),])
+}
+
+predictSummerCI(FullRecord)
+
+
+
+
+predictSummerCI(FullRecord[FullRecord$site == unique(FullRecord$site)[6],])
+
+
+test2 <- by(FullRecord, unique(FullRecord$site),  x[which(x$dOY == round(x$bp2)),])
+
+test <- ddply( FullRecord, .(site), summarise, predictSummerCI(FullRecord))
+  
+predTemp <- ifelse( FullRecord$segment == 2,
                                  predict(finalModelS2,FullRecord),
                          ifelse( FullRecord$segment == 3,
                                  predict(finalModelS3,FullRecord), NA ) )
+
+
+ 
+
+FullRecord$predTemp <- ifelse( FullRecord$segment == 2,
+                                 predict(finalModelS2,FullRecord),
+                         ifelse( FullRecord$segment == 3,
+                                 predict(finalModelS3,FullRecord), NA ) )
+
+
+
 
   #Calculate the temperature prediction at the Summer BP:
   #------------------------------------------------------
   summerMax <- ddply( FullRecord, .(site), summarize, predTempAtBP2 = predTemp[which(dOY == round(bp2))] )
   
-  
-  
+  summerMaxCI2 <- ddply( FullRecord, .(site, segment), summarize, predTempAtBP2 = 
+                           
+                           
+                           
+                           
+                           
+                           
+                           predict(finalModelS2,FullRecord[which(dOY == round(bp2)),] ) )
+
+
+
+
+
+
+
+
+
+
+  FullRecord <- merge ( predictionStatsTile, summerMax, by = 'site', all.x = T, sort = F)
+
   predictionStatsTile <- merge ( predictionStatsTile, summerMax, by = 'site', all.x = T, sort = F)
  
-  
-  
-  
   
   ##Calculate the CI of the temperature prediction at the Summer BP:
   ##----------------------------------------------------------------  
