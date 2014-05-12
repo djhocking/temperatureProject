@@ -21,8 +21,8 @@ library(lme4)
 library(DataCombine) # for the slide function
 
 baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'                           # Kyle
-baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
-baseDir <- 'D:/GitHub/projects/temperatureProject/'                                   # Ben
+#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
+#baseDir <- 'D:/GitHub/projects/temperatureProject/'                                   # Ben
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -36,13 +36,13 @@ Which agencies do you want to pull data from?
 ```{r Choose data source}
 
 #Northeast
-CTDEP  <- F
+CTDEP  <- T
 MAFW   <- T
 MAUSGS <- T
-NHFG   <- F
-NHDES  <- F
-USFS   <- F
-VTFWS  <- F
+NHFG   <- T
+NHDES  <- T
+USFS   <- T
+VTFWS  <- T
 MEDMR  <- F
 
 #Montana
@@ -54,7 +54,7 @@ sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS'
   
 dataSource <- sourceNames[sourceChoice == T]
 
-sourceList <- paste0(paste0(dataSource, collapse = '_'))#, '_', Sys.Date())
+sourceList <- paste0(paste0(dataSource, collapse = '_'), '_', Sys.Date())
 
 #setwd(paste0(baseDir, 'GitHub/projects/temperatureProject/'))
 
@@ -554,44 +554,6 @@ segDF <- segDF[order(segDF$site,segDF$year,segDF$dOY),]
 
 
 
-```{r copied example}
-# Get the mean BPs for each site:
-meanBP <- ddply( breaks, .(site), summarise, meanSpringBP = mean(springBP,na.rm=T), meanFallBP = mean(fallBP,na.rm=T) )
-breaks$meanSpringBP <- NULL; breaks$meanFallBP <- NULL # in case we've merged before
-
-breaks <- merge( x=breaks, y= meanBP, all.x=T, by=c('site') )
-
-# Get the mean BPs for each HUC:
-#  Currently means over all site/year combos. Other option would be to average all site means.
-meanBPHUC8 <- ddply( breaks, .(HUC_8), summarise, meanSpringBPHUC8 = mean(springBP,na.rm=T), meanFallBPHUC8 = mean(fallBP,na.rm=T) )
-breaks$meanSpringBPHUC8 <- NULL; breaks$meanFallBPHUC8 <- NULL # in case we've merged before
-
-breaks <- merge( x=breaks, y= meanBPHUC8, all.x=T, by=c('HUC_8') )
-
-#Define the averages of the calculated breakpoints.
-meanSpringBP <- mean(breaks$meanSpringBP[is.finite(breaks$meanSpringBP)])
-meanFallBP   <- mean(breaks$meanFallBP[is.finite(breaks$meanFallBP)])
-
-#If the breakpoint doesn't exist, replace it with the HUC8 mean. (Same if it's been calculated as NaN.)
-breaks$springBPWMean <- ifelse( is.na(breaks$springBP), breaks$meanSpringBPHUC8, breaks$springBP )
-breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), breaks$meanSpringBPHUC8, breaks$springBPWMean )
-breaks$fallBPWMean   <- ifelse( is.na(breaks$fallBP), breaks$meanFallBPHUC8, breaks$fallBP )
-breaks$fallBPWMean   <- ifelse( !is.finite(breaks$fallBPWMean), breaks$meanFallBPHUC8, breaks$fallBPWMean )
-
-#If the breakpoint still doesn't exist, replace it with the overall mean. (Same if it's been calculated as NaN.)
-breaks$springBPWMean <- ifelse( is.na(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
-breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
-breaks$fallBPWMean <- ifelse( is.na(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
-breaks$fallBPWMean <- ifelse( !is.finite(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
-
-# can have empty breakPoints if don't calculate a mean across years for each site in the ddply above
-# i.e. only data for one year in a site or no years have data before the spring cutoff or after the fall cutoff
-# in this case, just fill in the cutoffs, so the summer breakPoint can be calculated
-breaks$springBPWMean[is.na(breaks$springBPWMean )] <- minCompleteDOYBP1
-breaks$fallBPWMean  [is.na(breaks$fallBPWMean   )] <- maxCompleteDOYBP3
-
-```
-
 
 
 
@@ -935,3 +897,54 @@ e <- e[order(e$count),]
 e$lSradResid <- e$srad-predict(loess(srad~dOY, data=e ),e$dOY)
 e$lVpResid <- e$vp-predict(loess(vp~dOY, data=e ),e$dOY)
 e$lSweResid <- e$swe-predict(loess(swe~dOY, data=e ),e$dOY)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#```{r copied example}
+# Get the mean BPs for each site:
+meanBP <- ddply( breaks, .(site), summarise, meanSpringBP = mean(springBP,na.rm=T), meanFallBP = mean(fallBP,na.rm=T) )
+breaks$meanSpringBP <- NULL; breaks$meanFallBP <- NULL # in case we've merged before
+
+breaks <- merge( x=breaks, y= meanBP, all.x=T, by=c('site') )
+
+# Get the mean BPs for each HUC:
+#  Currently means over all site/year combos. Other option would be to average all site means.
+meanBPHUC8 <- ddply( breaks, .(HUC_8), summarise, meanSpringBPHUC8 = mean(springBP,na.rm=T), meanFallBPHUC8 = mean(fallBP,na.rm=T) )
+breaks$meanSpringBPHUC8 <- NULL; breaks$meanFallBPHUC8 <- NULL # in case we've merged before
+
+breaks <- merge( x=breaks, y= meanBPHUC8, all.x=T, by=c('HUC_8') )
+
+#Define the averages of the calculated breakpoints.
+meanSpringBP <- mean(breaks$meanSpringBP[is.finite(breaks$meanSpringBP)])
+meanFallBP   <- mean(breaks$meanFallBP[is.finite(breaks$meanFallBP)])
+
+#If the breakpoint doesn't exist, replace it with the HUC8 mean. (Same if it's been calculated as NaN.)
+breaks$springBPWMean <- ifelse( is.na(breaks$springBP), breaks$meanSpringBPHUC8, breaks$springBP )
+breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), breaks$meanSpringBPHUC8, breaks$springBPWMean )
+breaks$fallBPWMean   <- ifelse( is.na(breaks$fallBP), breaks$meanFallBPHUC8, breaks$fallBP )
+breaks$fallBPWMean   <- ifelse( !is.finite(breaks$fallBPWMean), breaks$meanFallBPHUC8, breaks$fallBPWMean )
+
+#If the breakpoint still doesn't exist, replace it with the overall mean. (Same if it's been calculated as NaN.)
+breaks$springBPWMean <- ifelse( is.na(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
+breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
+breaks$fallBPWMean <- ifelse( is.na(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
+breaks$fallBPWMean <- ifelse( !is.finite(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
+
+# can have empty breakPoints if don't calculate a mean across years for each site in the ddply above
+# i.e. only data for one year in a site or no years have data before the spring cutoff or after the fall cutoff
+# in this case, just fill in the cutoffs, so the summer breakPoint can be calculated
+breaks$springBPWMean[is.na(breaks$springBPWMean )] <- minCompleteDOYBP1
+breaks$fallBPWMean  [is.na(breaks$fallBPWMean   )] <- maxCompleteDOYBP3
+
+#```
