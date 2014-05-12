@@ -142,3 +142,125 @@ makeBiasMap <- function (d) {
     #ggtitle( as.character(y)))
   return(map)
 }
+
+
+
+
+
+
+#======================================
+# Scale time series data (from Daymet):
+#======================================
+# This function takes a dataframe of time series data and lists of variables to either scale or log-scale.
+
+
+loggAndScaleDaymet <- function(dataFrame, logVars, scaleVars){
+  
+  # Don't use "scale" because it creates a data type with attributes that make is difficult to use predict
+  
+  # Log the specified time-series data:
+  for ( i in logVars ){
+    dataFrame[,paste0(i, 'L')] <- log(dataFrame[,i]  + 0.001)
+  }
+  
+  #Split the dataframe into segments:
+  dataFrameSeg2 <- dataFrame[dataFrame$segment %in% 2,]
+  dataFrameSeg3 <- dataFrame[dataFrame$segment %in% 3,]
+  
+  # Scale the specified time-series data:
+  for ( j in scaleVars ){
+    
+    if( j %in% logVars ) {dataFrameSeg2[,paste0(j, 'LS')]  <- (dataFrameSeg2[,paste0(j, 'L')]  - mean(dataFrameSeg2[,paste0(j, 'L')],na.rm=T) ) / sd(dataFrameSeg2[,paste0(j, 'L')], na.rm=T )} 
+    else (dataFrameSeg2[,paste0(j, 'S')]  <- (dataFrameSeg2[,j]  - mean(dataFrameSeg2[,j],na.rm=T) ) / sd(dataFrameSeg2[,j], na.rm=T ))
+    
+    if( j %in% logVars ) {dataFrameSeg3[,paste0(j, 'LS')]  <- (dataFrameSeg3[,paste0(j, 'L')]  - mean(dataFrameSeg3[,paste0(j, 'L')],na.rm=T) ) / sd(dataFrameSeg3[,paste0(j, 'L')], na.rm=T )} 
+    else (dataFrameSeg3[,paste0(j, 'S')]  <- (dataFrameSeg3[,j]  - mean(dataFrameSeg3[,j],na.rm=T) ) / sd(dataFrameSeg3[,j], na.rm=T ))  
+  }
+  
+  return(list(dataFrame, dataFrameSeg2, dataFrameSeg3))
+}
+
+
+
+#========================================
+# Predict the maximum summer temperature:
+#========================================
+# This function takes the two dataframes with prediction data for the segmented models and a dataframe of all the prediction outputs.
+# It runs the respective models on each segment dataframe and joins them together for one output.
+# It also computes the confidence interval for this prediction.
+# Predicted values are added to the dataframe of prediction output.
+
+predictSummerTMax <- function(seg2DF, seg3DF, outputDF){
+  
+  # Index the summer BPs:
+  x2 <- ddply( seg2DF, .(site), summarise, dOY = dOY[dOY == round(bp2)])
+  x3 <- ddply( seg3DF, .(site), summarise, dOY = dOY[dOY == round(bp2)])
+  
+  # Pull the prediction data for these values:
+  y2 <- merge(x2, seg2DF, by = c('site', 'dOY'), all.x = T, sort = F)
+  y3 <- merge(x3, seg3DF, by = c('site', 'dOY'), all.x = T, sort = F)
+  
+  # Predict the temp and CI for just the summer BP:
+  z2 <-  data.frame(y2$site, predict(finalModelS2, y2, interval = "confidence"))
+  z3 <-  data.frame(y3$site, predict(finalModelS2, y3, interval = "confidence"))
+  
+  # Names :
+  names(z2) <- c('site', 'summerMax', 'lwr', 'upr')
+  names(z3) <- c('site', 'summerMax', 'lwr', 'upr')
+  
+  # Join the segments:
+  comb <- rbind(z2, z3)
+  
+  # Calculate the Confidence Interval:
+  comb$summerMaxCI <- comb$upr - comb$lwr
+  
+  # Merge with other predictions:
+  out <- merge(outputDF, comb[,c('site', 'summerMax', 'summerMaxCI')], by = 'site', all.x = T)
+  
+  return(out)
+}
+
+
+
+#===================================
+# Predict rising and falling slopes:
+#===================================
+# This function takes the one dataframe that already contains predicted temperatures and one dataframe of prediction outputs.
+# It runs a linear regression (by site and segment) on these predictions vs. the observed air temperature.
+# The slopes are returned and added to the prediction dataframe output.
+
+# Note: We can't do this directly in the big regressions because other daily covariates besides airTemp are included (swe, dayl, srad)
+
+predictSlopes <- function(inputDF, outputDF){
+  
+  # Predict rising and falling slopes
+  # ---------------------------------
+  slopes <- ddply( inputDF, .(site,segment), summarize, slope=coef(lm(predTemp ~ airTemp))[2])
+  
+  # Manipulate the output to join to prediction dataframe:
+  slopesMelt <- melt(slopes,id.vars=c('site','segment'))
+  slopesCast <- cast(slopesMelt,site~segment)
+  names(slopesCast) <- c('site','slopeSeg2','slopeSeg3')
+  
+  # Merge:    
+  out1 <- merge( x=outputDF, y=slopesCast, all.x=T, by = c('site') )
+  
+  # Get the confidence interval for the slopes
+  # ------------------------------------------
+  slopesCI <- ddply( inputDF, .(site,segment), summarize, range=confint(lm(predTemp ~ airTemp), 'airTemp', level = 0.95))      
+  slopesCI$slopeCI <- slopesCI$range[,2] - slopesCI$range[,1]
+  
+  # Names:
+  slopesCI <- slopesCI[,c('site', 'segment', 'slopeCI')]
+  
+  # Manipulate output:
+  slopesMeltCI <- melt(slopesCI,id.vars=c('site','segment'))
+  slopesCastCI <- cast(slopesMeltCI,site~segment)
+  names(slopesCastCI) <- c('site','slopeSeg2CI','slopeSeg3CI')
+  
+  # Merge:
+  out <- merge( x=out1, y=slopesCastCI, all.x=T, by = c('site') )
+  
+  return(out)
+}
+

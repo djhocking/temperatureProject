@@ -45,10 +45,10 @@ removeSelectSites <- T
 sitesToRemove <- paste0(baseDir, 'dataIn/sitesToRemoveAllNE.csv')
 
 #Do you want all of the plots made?
-makePlots <- T
+makePlots <- F
 
 #Use validation?
-validate=T
+validate=F
   
 #If validating:
   # Choose fraction of total # of sites:
@@ -74,7 +74,7 @@ dpiIn <- 400
 
 ```
 
-```{r load data}
+```{r load data} 
 
 #Set up data list.
 sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier )
@@ -110,7 +110,6 @@ for ( i in 1:length(dataSource)){
 masterData    <- newDay
 covariateData <- covs
 
-
 #Merge climate data into main dataframe:
 et <- merge(et, masterData, by = c('site', 'date', 'year', 'dOY'), all.x=T, sort = F )
 
@@ -122,6 +121,12 @@ covariateData <- replace(covariateData, is.na(covariateData), NA)
 
 #Make site a character string so the "merge" function works:
 covariateData$site <- as.character(covariateData$site)
+
+##For testing
+#testSites <- c("MAUSGS_WB_JIMMY", "MAUSGS_SEC_45_DL", "MAUSGS_WEST_BROOK", "MAUSGS_SEC_6_DL", "MAUSGS_SEC_30_DL", "MAUSGS_WB_OBEAR", "MAUSGS_WB_MITCHELL")
+
+#et <- et[et$site %in% testSites,]
+#covariateData <- covariateData[covariateData$site %in% testSites,]
 
 #=================================================================================================================
 #Scale the variables used in the model. Some get log-scaled depending on their distribution over the sites:
@@ -139,7 +144,6 @@ covariateData$AgricultureLS          <- (log(covariateData$Agriculture          
 covariateData$TotDASqKMLS            <- (log(covariateData$TotDASqKM            + 0.001) - mean(log(covariateData$TotDASqKM            + 0.001), na.rm=T)) / sd(log(covariateData$TotDASqKM            + 0.001), na.rm=T)
 covariateData$SurficialCoarseCLS     <- (log(covariateData$SurficialCoarseC     + 1    ) - mean(log(covariateData$SurficialCoarseC     + 1    ), na.rm=T)) / sd(log(covariateData$SurficialCoarseC     + 1    ), na.rm=T)
 covariateData$ImpoundmentsOpenSqKMLS <- (log(covariateData$ImpoundmentsOpenSqKM + 1    ) - mean(log(covariateData$ImpoundmentsOpenSqKM + 1    ), na.rm=T)) / sd(log(covariateData$ImpoundmentsOpenSqKM + 1    ), na.rm=T)
-
 
 et <- merge(et, covariateData, by = 'site', all.x=T, sort = F )
 
@@ -186,7 +190,11 @@ et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -1, NewVar='prcpLagge
 et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
 et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
 
-# 5-day mean of prcp
+```
+
+Left out to save time:
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 5-day mean of prcp 
 siteYearCombos <- unique(et[,c('site','year')])
 
 et$prcp5Day <- NA
@@ -203,9 +211,7 @@ for (i in 1:nrow(siteYearCombos)){
   
   et$prcp5Day[currSite] <- currMean
 }
-
-
-```
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ```{r check out data}
 #pairs(~Latitude+Longitude+Forest+ Impervious+ Agriculture+ BasinElevationM+ ReachSlopePCNT+ TotDASqKM+ WetlandOrWater+ SurficialCoarseC,data=et)
@@ -241,44 +247,20 @@ if(makePlots) {
 ```
 
 ```{r scale daymet vars and split et into rising and falling segments}
-# Don't use "scale" because it creates a data type with attributes that make is difficult to use predict
-
-loggAndScaleDaymet <- function(dataFrame, logVars, scaleVars){
-  
-  for ( i in logVars ){
-    dataFrame[,paste0(i, 'L')] <- log(dataFrame[,i]  + 0.001)
-  }
-  
-  dataFrameSeg2 <- dataFrame[dataFrame$segment %in% 2,]
-  dataFrameSeg3 <- dataFrame[dataFrame$segment %in% 3,]
-  
-  for ( j in scaleVars ){
-    
-    if( j %in% logVars ) {dataFrameSeg2[,paste0(j, 'LS')]  <- (dataFrameSeg2[,paste0(j, 'L')]  - mean(dataFrameSeg2[,paste0(j, 'L')],na.rm=T) ) / sd(dataFrameSeg2[,paste0(j, 'L')], na.rm=T )} 
-      else (dataFrameSeg2[,paste0(j, 'S')]  <- (dataFrameSeg2[,j]  - mean(dataFrameSeg2[,j],na.rm=T) ) / sd(dataFrameSeg2[,j], na.rm=T ))
-    
-    if( j %in% logVars ) {dataFrameSeg3[,paste0(j, 'LS')]  <- (dataFrameSeg3[,paste0(j, 'L')]  - mean(dataFrameSeg3[,paste0(j, 'L')],na.rm=T) ) / sd(dataFrameSeg3[,paste0(j, 'L')], na.rm=T )} 
-      else (dataFrameSeg3[,paste0(j, 'S')]  <- (dataFrameSeg3[,j]  - mean(dataFrameSeg3[,j],na.rm=T) ) / sd(dataFrameSeg3[,j], na.rm=T ))  
-  }
- 
-  return(list(dataFrame, dataFrameSeg2, dataFrameSeg3))
-}
-
-
 
 #List the variables you want logged.
-logVariables <- c('swe', 'prcp', 'prcpLagged1', 'prcpLagged2', 'prcpLagged3', 'prcp5Day')
+logVariables <- c('swe', 'prcp', 'prcpLagged1', 'prcpLagged2', 'prcpLagged3')# 'prcp5Day'
 
 #List the variables you want scaled. (If you want the logged ones scaled include them as well)
-scaleVariables <- c('swe', 'dayl', 'srad', 'prcp', 'prcpLagged1', 'prcpLagged2', 'prcpLagged3', 'prcp5Day')
+scaleVariables <- c('swe', 'dayl', 'srad', 'prcp', 'prcpLagged1', 'prcpLagged2', 'prcpLagged3')# 'prcp5Day'
 
-
+# Run the scaling funtion:
 logScaledData <- loggAndScaleDaymet(et, logVariables, scaleVariables)
 
-et  <- logScaledData[[1]]
-et2 <- logScaledData[[2]]
-et3 <- logScaledData[[3]]
-
+# Rename output:
+et  <- logScaledData[[1]] # Main dataframe
+et2 <- logScaledData[[2]] # Segment 2
+et3 <- logScaledData[[3]] # Segment 3
 ```
 
 Models for rising & falling segments
@@ -448,7 +430,17 @@ m15 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
 
 segModels             <- list(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15)
 segModelsDescriptions <- list(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15)
+```
 
+# If you already know the model you want to run then run this code with the model entered. Otherwise skip to next section to compare models.
+```{r Already know model}
+
+segModels             <- list(m10)
+segModelsDescriptions <- list(d10)
+
+```
+
+```{r Run and validate models}
 #=================================================================================================================
 #                                                    Segment 2
 #=================================================================================================================
@@ -460,8 +452,7 @@ valData2    <- et2[et2$site %in% randomSitesS2,]
 mS2  <- list()
 vmS2 <- list()
 
-#for (i in 1:length(segModels)){
-for (i in 10:length(segModels)){  
+for (i in 1:length(segModels)){
   print(i/length(segModels))  
   
   mS2[[i]] <- lm(as.formula(segModels[[i]]), data=et2)
@@ -481,24 +472,20 @@ if(validate){
 
       if( i == 1 ) { modelMetricsS2 <- a} else ( modelMetricsS2 <- rbind(modelMetricsS2, a))
   }# for loop
-} else ( for ( i in 1:length(vmS2) ){   
+  
+} else ( for ( i in 1:length(mS2) ){   
       a <- data.frame(extractAIC(mS2[[i]])[1], extractAIC(mS2[[i]])[2], summary(mS2[[i]])$sigma, segModelsDescriptions[[i]])
 
       if( i == 1 ) { modelMetricsS2 <- a} else ( modelMetricsS2 <- rbind(modelMetricsS2, a))
   }# for loop
+  
 )
 
+# Label comparison table
+if(validate) {colnames(modelMetricsS2) <- c('meanRMSE', 'meanBiasMean', 'meanBiasSD', 'AIC.df', 'AIC', 'Sigma', 'Model Description')} else (colnames(modelMetricsS2) <- c('AIC.df', 'AIC', 'Sigma', 'Model Description'))
 rownames(modelMetricsS2) <-   paste0( 'm', seq(from =1, to = length(mS2), by = 1), 'S2')  
-colnames(modelMetricsS2) <- c('meanRMSE', 'meanBiasMean', 'meanBiasSD', 'AIC.df', 'AIC', 'Sigma', 'Model Description')
 
 modelMetricsS2
-
-
-for ( i in 10:15){
-  print(extractAIC(mS2[[i]])[2] - extractAIC(mS2[[10]])[2])
-  print(AIC(mS3[[i]]) - AIC(mS3[[10]]))
-}
-
 
 #=================================================================================================================
 #                                                    Segment 3
@@ -511,9 +498,7 @@ valData3    <- et3[et3$site %in% randomSitesS3,]
 mS3  <- list()
 vmS3 <- list()
 
-
-#for (i in 1:length(segModels)){
-for (i in 10:length(segModels)){  
+for (i in 1:length(segModels)){
   print(i/length(segModels))
   
   mS3[[i]] <- lm(as.formula(segModels[[i]]), data=et3)
@@ -534,19 +519,22 @@ if(validate){
       if( i == 1 ) { modelMetricsS3 <- a} else ( modelMetricsS3 <- rbind(modelMetricsS3, a))
   }# for loop
 
-} else ( for ( i in 1:length(vmS3) ){   
+} else ( for ( i in 1:length(mS3) ){   
       a <- data.frame(extractAIC(mS3[[i]])[1], extractAIC(mS3[[i]])[2], summary(mS3[[i]])$sigma, segModelsDescriptions[[i]])
 
       if( i == 1 ) { modelMetricsS3 <- a} else ( modelMetricsS3 <- rbind(modelMetricsS3, a))
   }# for loop
 )
 
+# Label comparison table
+if(validate) {colnames(modelMetricsS3) <- c('meanRMSE', 'meanBiasMean', 'meanBiasSD', 'AIC.df', 'AIC', 'Sigma', 'Model Description')} else (colnames(modelMetricsS3) <- c('AIC.df', 'AIC', 'Sigma', 'Model Description'))
 rownames(modelMetricsS3) <-   paste0( 'm', seq(from =1, to = length(mS3), by = 1), 'S3')  
-colnames(modelMetricsS3) <- c('meanRMSE', 'meanBiasMean', 'meanBiasSD', 'AIC.df', 'AIC', 'Sigma', 'Model Description')
+
 
 modelMetricsS3
+```
 
-
+```{r Save model metrics}
 #=================================================================================================================
 #                                                   Save the model metrics
 #=================================================================================================================
@@ -561,10 +549,10 @@ if(validate){
 ```{r Choose models to use and predict stream temp values}
 #After model comparison, choose which model to use to predict:
 
-predictionModelNum <- 10
+predictionModelNum <- 1
 
 finalModelS2  <- mS2 [[predictionModelNum]]; finalModelS3   <- mS3 [[predictionModelNum]]
-finalValModS2 <- vmS2[[predictionModelNum]]; finalValModS3  <- vmS3[[predictionModelNum]]
+if(validate) {finalValModS2 <- vmS2[[predictionModelNum]]; finalValModS3  <- vmS3[[predictionModelNum]]}
 
 # Predict stream temperatures:
 et2[,c('pred', 'lowr', 'upr')] <- predict (finalModelS2, newdata=et2, interval = "confidence") #default confidence interval (CI) = 95%
@@ -763,6 +751,13 @@ if ( makePlots ) {
 }
 ```
 
+
+
+
+
+
+
+
 Predict values for selected catchements
 1) Predict breakpoints for UpstreamStats
 2) Merge bps into Daymet files
@@ -833,38 +828,50 @@ for ( i in 1:length(DaymetTiles)){
   print(i)
   
   # Read in daily data for tile:
-  #-----------------------------
+  # ============================
   setwd("C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/DaymetClimateData")
   
   load(paste0('NHD_DaymetTile_' , DaymetTiles[i], '_', Year, '.RData'))
   
+  # Index the prediction data that matches the Daymet tile:
   predictionStatsTile <- predictionStats[predictionStats$FEATUREID %in% FullRecord$FEATUREID, ]
 
+  # Trim the Daymet tile dataframes to the polygon of catchments you are interested in:
   if(exists('features')){predictionStatsTile <- predictionStatsTile[predictionStatsTile$FEATUREID %in% features, ]}
   if(exists('features')){FullRecord <- FullRecord[FullRecord$FEATUREID %in% features,]}
   
-  FullRecord$site <- FullRecord$FEATUREID
-
+  # Renaming:
+  names(FullRecord         )[names(FullRecord         ) == 'FEATUREID'] <- 'site'
+  names(predictionStatsTile)[names(predictionStatsTile) == 'FEATUREID'] <- 'site' 
+    
   # Merge in bps and assign segments. Do here to make FullRecord smaller:
-  #----------------------------------------------------------------------
-  FullRecord <- merge( x=FullRecord, y=predictionStatsTile, all.x=T, by = 'FEATUREID' )
+  # =====================================================================
+  FullRecord <- merge( x=FullRecord, y=predictionStatsTile, all.x=T, by = c('site', 'year' ) )
   
   #limit FullRecord to between bp1 and bp3 and assign segments
   FullRecord <- FullRecord[FullRecord$dOY > FullRecord$bp1 & 
-                         FullRecord$dOY < FullRecord$bp3,]
+                           FullRecord$dOY < FullRecord$bp3,]
+  
   FullRecord$segment <- ifelse( FullRecord$dOY > FullRecord$bp1 & 
                                FullRecord$dOY <= FullRecord$bp2, 2,
                         ifelse( FullRecord$dOY > FullRecord$bp2 &
                                FullRecord$dOY <= FullRecord$bp3, 3, NA))
   
-  # get rid of site/segment combos with all low # of obs
-  counts <- ddply( FullRecord, .(site,segment), summarize, count=length(na.omit(airTemp)))
+  
+  # Get rid of site/segment combos with all low # of obs:
+  # =====================================================
+  counts     <- ddply( FullRecord, .(site,segment), summarize, count=length(na.omit(airTemp)))
   FullRecord <- merge( x=FullRecord, y=counts, all.x=T )
   FullRecord <- FullRecord[ FullRecord$count > 3, ]
 
-
-  # Lag select daymet variables (slow for big datasets)
-  #----------------------------
+  # Do the same for prcp. Need to look into why there are NAs
+  counts1    <- ddply( FullRecord, .(site,segment), summarize, count1=length(na.omit(prcp)))
+  FullRecord <- merge( x=FullRecord, y=counts1, all.x=T )
+  FullRecord <- FullRecord[ FullRecord$count1 > 3, ]
+  
+  
+  # Lag select daymet variables: (slow for big datasets)
+  # ============================
   FullRecord <- FullRecord[order(FullRecord$site,FullRecord$dOY),] # just to make sure FullRecord is ordered for the slide function
   
   # airTemp
@@ -876,8 +883,8 @@ for ( i in 1:length(DaymetTiles)){
   FullRecord <- slide(FullRecord, Var = "prcp",    GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
   FullRecord <- slide(FullRecord, Var = "prcp",    GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
   
-  # Calculate 5-day mean of prcp
-  #-----------------------------
+  # Calculate 5-day mean of prcp:
+  # =============================
   if('prcp5DayLS' %in% variable.names(finalModelS2) | 'prcp5DayLS' %in% variable.names(finalModelS3) ) {
   
     FullRecord$prcp5Day <- NA
@@ -893,226 +900,78 @@ for ( i in 1:length(DaymetTiles)){
     
       if(i/100 == round(i/100)) {print(paste0(i/length(loopSites), '% done 5-day averaging prcp'))}
     }
-
   }
-  
     
   # Log scale the daymet variables:
-  #--------------------------------
+  # ===============================
   
   # Only scale the variables that made it into the model:
   predLogVars   <- names(FullRecord)[names(FullRecord) %in% logVariables  ]
   predScaleVars <- names(FullRecord)[names(FullRecord) %in% scaleVariables]
-    
-  logScaledPreds <- loggAndScaleDaymet(FullRecord, predLogVars, predScaleVars)# Scale and log the same variables as the observed data
+  
+  # Scale and log the same variables as the observed data:
+  logScaledPreds <- loggAndScaleDaymet(FullRecord, predLogVars, predScaleVars)
   
   FullRecord  <- logScaledPreds[[1]]
   FR2 <- logScaledPreds[[2]]
   FR3 <- logScaledPreds[[3]]
-
   
+  # Predict  Summer Tmax and its CI:
+  # ================================
+  predictionStatsTile <- predictSummerTMax(FR2, FR3, predictionStatsTile)
   
+  # Predict daily water temp
+  # ========================
+  # Note: running the 'if else' script on the full dataframe runs into memory limitations. This is the reason for the split.
+  FR2$predTemp <-predict(finalModelS2,FR2)
+  FR3$predTemp <- predict(finalModelS3,FR3)
   
-  
-  
-  #FullRecord$sweL      <- log(FullRecord$swe      + 0.001)
-  #FullRecord$prcpL     <- log(FullRecord$prcp     + 0.001)
-  #FullRecord$prcpL1    <- log(FullRecord$prcp1    + 0.001)
-  #FullRecord$prcpL2    <- log(FullRecord$prcp2    + 0.001)
-  #FullRecord$prcpL3    <- log(FullRecord$prcp3    + 0.001)
-  #FullRecord$prcp5DayL <- log(FullRecord$prcp5Day + 0.001)
-  
-  # Split the record into segments:
-  #--------------------------------
-  #FR2 <- FullRecord[FullRecord$segment %in% 2,]
-  #FR3 <- FullRecord[FullRecord$segment %in% 3,]
-  
-  
-  #FR2day <- data.frame( FR2[,c('site', 'year.x', 'dOY')], 
-  #                      sweLS = (FR2$sweL-mean(FR2$sweL,na.rm=T))/sd(FR2$sweL,na.rm=T), 
-  #                      daylS = (FR2$dayl-mean(FR2$dayl,na.rm=T))/sd(FR2$dayl,na.rm=T), 
-  #                      sradS = (FR2$srad-mean(FR2$srad,na.rm=T))/sd(FR2$srad,na.rm=T),
-  #                      prcpLS = (FR2$sweL-mean(FR2$sweL,na.rm=T))/sd(FR2$sweL,na.rm=T))
-  
-  #FR3day <- data.frame( FR3[,c('site', 'year.x', 'dOY')], 
-  #                      sweLS = (FR3$sweL-mean(FR3$sweL,na.rm=T))/sd(FR3$sweL,na.rm=T),              
-  #                      daylS = (FR3$dayl-mean(FR3$dayl,na.rm=T))/sd(FR3$dayl,na.rm=T), 
-  #                      sradS = (FR3$srad-mean(FR3$srad,na.rm=T))/sd(FR3$srad,na.rm=T))
-  
-  
-  #FullRecord <- merge(FullRecord, FRday, by = c('site', 'year.x', 'dOY'), all.x = T, sort = F)
-  
-  
-  
-  #Join to over-write FullRecord. Ok because we are just interested in segments 2 and 3:
-  FullRecord <- rbind(FR2, FR3)
-  
-  
-  
-  FullRecord <- FullRecord[FullRecord$site %in% unique(FullRecord$site)[1:10], ] # For testing
-  
-  
-  predict(finalModelS2, x, interval = "confidence")
-  
-  t <- ifelse( FR2$dOY == round(FR2$bp2), predict(finalModelS2, FR2, interval = "confidence"), NA)
-  
-  
-  # Predict stream temperatures:
-#  et2[,c('pred', 'lowr', 'upr')] <- predict (finalModelS2, newdata=et2, interval = "confidence") #default confidence interval (CI) = 95%
-#  et3[,c('pred', 'lowr', 'upr')] <- predict (finalModelS3, newdata=et3, interval = "confidence") #default confidence interval (CI) = 95%
-
-  #############################
-  # predict daily water temp
-  
-d <- predict(finalModelS2,x, interval = "confidence")
-
-predictSummerCI <- function(x){
-
-  x <- FullRecord
-  
-  
-  out[,c('pred','lwr','upr')] <- ifelse( x$segment == 2 & x$dOY == round(x$bp2),
-                                  predict(finalModelS2, x, interval = "confidence"),
-                                  ifelse( x$segment == 3 & x$dOY == round(x$bp2),
-                                  predict(finalModelS3, x, interval = "confidence"), NA ) )
-  
-  
-  ifelse( x$segment == 2 & x$dOY == round(x$bp2),
-    predict(finalModelS2, x, interval = "confidence"),
-    ifelse( x$segment == 3 & x$dOY == round(x$bp2),
-    predict(finalModelS3, x, interval = "confidence"), NA ) )
-  
-  names(out) <- 
-  
-  return(out[!is.na(out$pred),])
-}
-
-predictSummerCI(FullRecord)
-
-
-
-
-predictSummerCI(FullRecord[FullRecord$site == unique(FullRecord$site)[6],])
-
-
-test2 <- by(FullRecord, unique(FullRecord$site),  x[which(x$dOY == round(x$bp2)),])
-
-test <- ddply( FullRecord, .(site), summarise, predictSummerCI(FullRecord))
-  
-predTemp <- ifelse( FullRecord$segment == 2,
-                                 predict(finalModelS2,FullRecord),
-                         ifelse( FullRecord$segment == 3,
-                                 predict(finalModelS3,FullRecord), NA ) )
-
-
- 
-
-FullRecord$predTemp <- ifelse( FullRecord$segment == 2,
-                                 predict(finalModelS2,FullRecord),
-                         ifelse( FullRecord$segment == 3,
-                                 predict(finalModelS3,FullRecord), NA ) )
-
-
-
-
-  #Calculate the temperature prediction at the Summer BP:
-  #------------------------------------------------------
-  summerMax <- ddply( FullRecord, .(site), summarize, predTempAtBP2 = predTemp[which(dOY == round(bp2))] )
-  
-  summerMaxCI2 <- ddply( FullRecord, .(site, segment), summarize, predTempAtBP2 = 
-                           
-                           
-                           
-                           
-                           
-                           
-                           predict(finalModelS2,FullRecord[which(dOY == round(bp2)),] ) )
-
-
-
-
-
-
-
-
-
-
-  FullRecord <- merge ( predictionStatsTile, summerMax, by = 'site', all.x = T, sort = F)
-
-  predictionStatsTile <- merge ( predictionStatsTile, summerMax, by = 'site', all.x = T, sort = F)
- 
-  
-  ##Calculate the CI of the temperature prediction at the Summer BP:
-  ##----------------------------------------------------------------  
-  summerMaxCI <- ddply( CIPreds, .(site), summarize, predTempAtBP2CI = upr[which(dOY == round(bp2))] - lwr[which(dOY == round(bp2))] )
-  predictionStatsTile <- merge ( predictionStatsTile, summerMaxCI, by = 'site', all.x = T, sort = F)
-
-  
-  
-
-  
-  
-  #############################
-  # get CI for daily temp prediction
-  seg2mod <- data.frame(as.matrix(FullRecord[,c('site','segment', 'dOY', 'bp2'), ]), predict(finalModelS2,FullRecord, interval = "confidence"))
-  seg2 <- seg2mod[seg2mod$segment == 2,]
-  
-  seg3mod <- data.frame(as.matrix(FullRecord[,c('site','segment', 'dOY', 'bp2'), ]), predict(finalModelS3,FullRecord, interval = "confidence"))
-  seg3 <- seg3mod[seg3mod$segment == 3,]
-
-  segNAmod <- data.frame(as.matrix(FullRecord[,c('site','segment', 'dOY', 'bp2'), ]), matrix(NA, nrow = nrow(FullRecord), ncol = 3))
-  segNA <- segNAmod[!(segNAmod$segment %in% c(2,3)),]
-  colnames(segNA) <- c('site','segment', 'dOY', 'fit', 'lwr', 'upr')
-
-  CIPreds <- rbind(seg2, seg3, segNA)
-  CIPreds <- CIPreds[order(CIPreds$site,CIPreds$dOY),] 
+  # Join to over-write FullRecord: (Ok because we already pulled data not in segments 2 or 3)
+  # ==============================
+  FullRecord <- rbind(FR2, FR3) 
   
   # Estimate slopes of air/water for each site:
-  #--------------------------------------------
-  # Can't do this directly in the big regressions because other daily covariates besides airTemp are included (swe, dayl, srad)
-
-  slopes <- ddply( FullRecord, .(site,segment), summarize, slope=coef(lm(predTemp ~ airTemp))[2])    
+  # ===========================================
+  predictionStatsTile <- predictSlopes(FullRecord, predictionStatsTile)
   
-  slopesMelt <- melt(slopes,id.vars=c('site','segment'))
-  slopesCast <- cast(slopesMelt,site~segment)
-  names(slopesCast) <- c('site','slopeSeg2','slopeSeg3')
-  FullRecord <- merge( x=FullRecord, y=slopes, all.x=T, by = c('site','segment') )
-  
-  predictionStatsTile$site <- predictionStatsTile$FEATUREID
-  predictionStatsTile <- merge( x=predictionStatsTile, y=slopesCast, all.x=T, by = c('site') )
-  #ggplot(slopes, aes(slope)) + geom_histogram()+facet_wrap(~segment)
-  
-  #Get the confidence interval for the slopes
-  slopesCI <- ddply( FullRecord, .(site,segment), summarize, range=confint(lm(predTemp ~ airTemp), 'airTemp', level = 0.95))
-  
-  slopesCI$slopeCI <- slopesCI$range[,2] - slopesCI$range[,1]
-
-  slopesCI <- slopesCI[,c('site', 'segment', 'slopeCI')]
-  
-  slopesMeltCI <- melt(slopesCI,id.vars=c('site','segment'))
-  slopesCastCI <- cast(slopesMeltCI,site~segment)
-  names(slopesCastCI) <- c('site','slopeSeg2CI','slopeSeg3CI')
-  
-  predictionStatsTile <- merge( x=predictionStatsTile, y=slopesCastCI, all.x=T, by = c('site') )
-
-
-  
-  
-  
-  
-
-  
-  TempPreds <- predictionStatsTile[,c('FEATUREID', 'bp1', 'bp2', 'bp3', 'bp1bp3', 'slopeSeg2', 'slopeSeg2CI',  'slopeSeg3', 'slopeSeg3CI', 'predTempAtBP2', 'predTempAtBP2CI')]
+  # Create a master dataframe of all predictions:
+  # =============================================
+  TempPreds <- predictionStatsTile[,c('site', 'bp1', 'bp2', 'bp3', 'bp1bp3', 'slopeSeg2', 'slopeSeg2CI',  'slopeSeg3', 'slopeSeg3CI', 'summerMax', 'summerMaxCI')]
     
   if ( i == 1 ) {Predictions <- TempPreds}  else (Predictions <- rbind(Predictions, TempPreds))
 
-  save(FullRecord, file=paste0(dataOutDir, sourceList, '/DaymetClimateDataNHD_DaymetTile' , DaymetTiles[i], '_', Year, 'AfterR_', sourceList, '.RData'))
+  
+  
+
+  #Creates folders for graphs if they don't exist:
+  #-----------------------------------------------
+#  subGraphsDir  <- paste0(graphsDir,  sourceList)
+# subDataOutDir <- paste0(dataOutDir, sourceList)
+  
+ 
+  
+  # Save the record:
+  # ================
+
+  # Check to see if the output folder exists. Create one if it doesn't.
+  if ( i == 1){
+  predictionTileFolder <- paste0(dataOutDir, sourceList, '/modelPredictionTimeseries')
+  
+    if (!file.exists(predictionTileFolder) ){
+      dir.create(file.path(predictionTileFolder))
+      }
+  }
+
+  # Save it:
+  save(FullRecord, file=paste0(predictionTileFolder, '/predictionRecord_DaymetTile' , DaymetTiles[i], '_', Year, '.RData'))
 }
 
 ```
 
-
 ```{r Write out prediction files for ArcGIS}
+
+names(Predictions)[names(Predictions) == 'site'] <- 'FEATUREID'
+
 Predictions <- merge(Predictions, predictionStats[,c('FEATUREID', 'StreamOrder')], by = 'FEATUREID', all.x = T, sort = F)
 
 #Write out prediction files for ArcGIS:
@@ -1134,78 +993,3 @@ streamOrderTrim[ streamOrderTrim$StreamOrder > 3 , c('SpringBP', 'SummerBP', 'Fa
 write.csv(streamOrderTrim, file = paste0(dataOutDir, sourceList, '/BP_HeadwatersPredictions', Year, '.csv'), row.names = F )
 write.dbf(streamOrderTrim, file = paste0(dataOutDir, sourceList, '/BP_HeadwatersPredictions', Year, '.dbf'))
 ```
-
-
-
-#---------------------------------------------------------------------
-
-#                            OTHER MODELS
-
-#---------------------------------------------------------------------
-
-
-
-
-#Model 3: Selected interactions
-#---------------------------------------------------------------------
-m3 <- 'temp~airTemp + airTempLagged1 + airTempLagged2 + LatitudeS + LongitudeS + BasinElevationMS + ReachSlopePCNTS + 
-             TotDASqKMLS + SurficialCoarseCLS + ForestS + AgricultureLS + WetlandOrWaterS + ImpoundmentsOpenSqKMLS +
-             daylS + sradS + sweLS + 
-             airTemp*ReachSlopePCNTS + airTemp*TotDASqKMLS + airTemp*WetlandOrWaterS + 
-             airTemp*ImpoundmentsOpenSqKMLS + airTemp*sweLS + 
-             airTempLagged1 + airTempLagged1*ReachSlopePCNTS + airTempLagged1*TotDASqKMLS + airTempLagged1*WetlandOrWaterS + 
-             airTempLagged1*ImpoundmentsOpenSqKMLS + airTempLagged1*sweLS + 
-             airTempLagged2 + airTempLagged2*ReachSlopePCNTS + airTempLagged2*TotDASqKMLS + airTempLagged2*WetlandOrWaterS + 
-             airTempLagged2*ImpoundmentsOpenSqKMLS + airTempLagged2*sweLS + 
-             ReachSlopePCNTS*ImpoundmentsOpenSqKMLS + ReachSlopePCNTS*daylS + ReachSlopePCNTS*sradS +
-             TotDASqKMLS*ImpoundmentsOpenSqKMLS + TotDASqKMLS*daylS + TotDASqKMLS*sradS +
-             SurficialCoarseCLS*ForestS +   
-             ForestS*daylS + ForestS*sradS + ForestS*sweLS +
-             WetlandOrWaterS*daylS + WetlandOrWaterS*sradS + 
-             ImpoundmentsOpenSqKMLS*daylS + ImpoundmentsOpenSqKMLS*sradS + 
-             daylS*sweLS + 
-             sradS*sweLS'
-
-#Model 4: Two-way interactions  without Daymet data.
-#---------------------------------------------------------------------
-m4 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
-              #segment+
-              LatitudeS+LongitudeS+
-              ForestS+ AgricultureLS+ 
-              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
-              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS 
-              )^2'
-
-
-
-#Model 7: Selected interactions with prcp
-#---------------------------------------------------------------------
-m7 <- 'temp~airTemp + airTempLagged1 + airTempLagged2 + LatitudeS + LongitudeS + BasinElevationMS + ReachSlopePCNTS + 
-             TotDASqKMLS + SurficialCoarseCLS + ForestS + AgricultureLS + WetlandOrWaterS + ImpoundmentsOpenSqKMLS +
-             daylS + sradS + sweLS + prcpLS +
-             airTemp*ReachSlopePCNTS + airTemp*TotDASqKMLS + airTemp*WetlandOrWaterS + 
-             airTemp*ImpoundmentsOpenSqKMLS + airTemp*sweLS + 
-             airTempLagged1 + airTempLagged1*ReachSlopePCNTS + airTempLagged1*TotDASqKMLS + airTempLagged1*WetlandOrWaterS + 
-             airTempLagged1*ImpoundmentsOpenSqKMLS + airTempLagged1*sweLS + 
-             airTempLagged2 + airTempLagged2*ReachSlopePCNTS + airTempLagged2*TotDASqKMLS + airTempLagged2*WetlandOrWaterS + 
-             airTempLagged2*ImpoundmentsOpenSqKMLS + airTempLagged2*sweLS + 
-             ReachSlopePCNTS*ImpoundmentsOpenSqKMLS + ReachSlopePCNTS*daylS + ReachSlopePCNTS*sradS +
-             TotDASqKMLS*ImpoundmentsOpenSqKMLS + TotDASqKMLS*daylS + TotDASqKMLS*sradS +
-             SurficialCoarseCLS*ForestS +   
-             ForestS*daylS + ForestS*sradS + ForestS*sweLS +
-             WetlandOrWaterS*daylS + WetlandOrWaterS*sradS + 
-             ImpoundmentsOpenSqKMLS*daylS + ImpoundmentsOpenSqKMLS*sradS + 
-             daylS*sweLS + 
-             sradS*sweLS +
-             prcpLS*BasinElevationMS'
-
-
-
-
-m7S2 <- lm(m7, data=et2)
-#-----------------------
-if(validate){
-  vm7S2 <- validateModel( m7S2, et2, valData2 )
-  if(createBiasMaps) { makeBiasMap(vm7S2) }
-}
-
