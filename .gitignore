@@ -12,3 +12,9 @@ modelPredictionTimeseries/
 *.tiff
 *.tif
 *.eps
+nlme.RData
+gamm.RData
+*.Rhistory
+.Rapp.history
+dataIn/nlme.RData
+gamm2.RData
