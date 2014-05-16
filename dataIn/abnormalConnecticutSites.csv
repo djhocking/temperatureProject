@@ -1,0 +1,55 @@
+Site,Agency,Year,Name,Lat,Long,Issue
+1,CTDEP,2010,Aspetuck River,41.18643333,-73.34293333,Logger out of water (start)
+33,CTDEP,2001,Coppermine Brook,41.67773611,-72.90773333,Logger out of water (start)
+50,CTDEP,2001,East Branch Naugatuck River,41.82031,-73.12325,Logger out of water (start)
+54,CTDEP,2001,East Branch Naugatuck River,41.79772778,-73.11583333,Logger out of water (start + end)
+112,CTDEP,2001,Hockanum River,41.78588,-72.55692,Logger out of water (start + end)
+155,CTDEP,2001,Little River,41.40580833,-73.09262778,Logger out of water (start + end)
+168,CTDEP,1999,Mianus River,41.08064,-73.58123,Logger out of water (start)
+191,CTDEP,2001,Naugatuck River,41.61593056,-73.05788333,Logger out of water (end)
+205,CTDEP,2001,Naugatuck River,41.51818611,-73.05360556,Logger out of water (start + end)
+212,CTDEP,2001,Naugatuck River,41.44273611,-73.06255278,Logger out of water (start + end)
+258,CTDEP,2001,Pequabuck River,41.67186019,-72.87506161,Logger out of water (start + end)
+266,CTDEP,2001,Pequabuck River,41.66808634,-72.92082593,Logger out of water (start + end)
+289,CTDEP,2009,Quinnipiac River,41.45008,-72.84074,Logger out of water (start)
+318,CTDEP,2010,Saugatuck River,41.22454,-73.34694,Logger out of water (start)
+346,CTDEP,2001,Ten Mile River,41.66637778,-73.5119,Logger out of water (start + end)
+518,CTDEP,2001,Beacon Hill Brook,41.46846,-73.05195,Logger out of water (start)
+575,CTDEP,2001,Blackberry River,42.02841292,-73.33942297,Logger out of water (start + end)
+682,CTDEP,2002,Fulling Mill Brook,41.50225964,-73.04750533,Logger out of water (start + end)
+710,CTDEP,2001,Blackberry River,42.00646892,-73.23429467,Logger out of water (start + end)
+711,CTDEP,2001,Pequabuck River,41.67173889,-72.94805278,Logger out of water (start + end)
+712,CTDEP,2001,Pequabuck River,41.67081944,-72.94161389,Logger out of water (start + end)
+905,CTDEP,2007,Mill River,41.24471944,-73.255525,Impoundment?
+919,CTDEP,2004,Weekepeemee River,41.63883,-73.22238,Logger out of water (end)
+953,CTDEP,2001,Kent Falls Brook,41.7769,-73.41915278,Logger out of water (start + end)
+956,CTDEP,2005,Hockanum River,41.86763889,-72.43411111,Impoundment?
+970,CTDEP,2001,Blackberry River,42.01144444,-73.30673333,Logger out of water (start + end)
+1030,CTDEP,2001,East Branch Naugatuck River,41.86980833,-73.13716389,Logger out of water (start + end)
+1139,CTDEP,2001,Long Meadow Pond Brook,41.4861,-73.05791111,Logger out of water (end)
+1162,CTDEP,2001,Furnace Brook,41.81833333,-73.36611111,Logger out of water (end)
+1413,CTDEP,2001,Naugatuck River,41.73465833,-73.10512778,Logger out of water (start + end)
+1467,CTDEP,2001,Macedonia Brook,41.72977778,-73.48841667,Logger out of water (start + end)
+1744,CTDEP,all,West Branch Farmington River,41.96022222,-73.01777778,Impoundment?
+1829,CTDEP,2010,Watchaug Brook,42.0187,-72.4709,Impoundment?
+2004,CTDEP,2004,Naugatuck River,41.74117,-73.11478,Logger out of water (end)
+2005,CTDEP,2004,Naugatuck River,41.74847,-73.11289,Logger out of water (end)
+2217,CTDEP,2001,Sandy Brook,42.03273067,-73.12323364,Logger out of water (start + end)
+2218,CTDEP,2001,Sandy Brook,42.01902114,-73.11551744,Logger out of water (start + end)
+2295,CTDEP,all,Mott Hill Brook,41.66151603,-72.53648773,"Impoundment? (water cooler in summer, warmer in winter)"
+2688,CTDEP,2010,Saugatuck River,41.1495,-73.3661,Logger out of water (start)
+5074,CTDEP,2001,BLACKBERRY RIVER,42.00083,-73.22028,Logger out of water (start + end)
+5183,CTDEP,2001,EAST BRANCH NAUGATUCK RIVER,41.83083,-73.11972,Logger out of water (start + end)
+5989,CTDEP,2004,Little River,41.34922,-73.1278,Logger out of water (start)
+5990,CTDEP,2004,Little River,41.29191,-73.36918,Logger out of water (start)
+5991,CTDEP,2004,Little River,41.40978,-73.09851,Logger out of water (start)
+5994,CTDEP,2001,Macedonia Brook,41.7547,-73.48854,Logger out of water (start)
+5995,CTDEP,2001,Macedonia Brook,41.78436,-73.48854,Logger out of water (start)
+6002,CTDEP,all,Mill River,41.2412,-73.25402,Impoundment?
+6024,CTDEP,2001,Shepaug River,41.68301,-73.30568,Logger out of water (start) / Impoundment?
+6025,CTDEP,2001,Shepaug River,41.71852,-73.29278,Logger out of water (start) / Impoundment?
+6045,CTDEP,2001,Wachocastinook Creek,42.00459,-73.46089,Logger out of water (start)
+6046,CTDEP,2001,Wachocastinook Creek,42.0048,-73.46765,Logger out of water (start)
+6047,CTDEP,2001,Wachocastinook Creek,41.99665,-73.44174,Logger out of water (start)
+6221,CTDEP,2010,Spring Glen Brook,41.89927,-72.57056,Impoundment?
+6638,CTDEP,2010,"Kent Falls Brook, Tributary to",41.764918,-73.409042,Impoundment?

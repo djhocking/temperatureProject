@@ -1,3 +1,5 @@
+graphs/*
+!graphs/shared/
 maps/
 UMassWork/
 DaymetClimateData/
@@ -5,7 +7,6 @@ modelPredictionTimeseries/
 .Rproj.user
 .Rhistory
 .RData
-*.png
 *.jpg
 *.jpeg
 *.pdf
