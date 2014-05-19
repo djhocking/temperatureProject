@@ -1,0 +1,190 @@
+This code goes through data with multiple sites listed at the same location and joins the time series data for each record together into one site.
+
+The code does this for both temp and Daymet dataframes
+
+```{r Read in data}
+rm(list=ls())
+
+# Define agency to edit
+agency <- 'VTFWS'
+
+setwd(paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', agency))
+
+# Sites to be changed
+s <- read.csv(paste0('siteChanges_', agency, '.csv'))
+s$site <- as.character(s$site)
+```
+
+```{r Join duplicate locations and save temperature file}
+
+load(paste0('streamTempData_', agency, '.RData'))
+e <- masterData
+
+s1 <- s[which(s$duplicatePairing != 'ONE'),]
+
+locations <- unique(s1$duplicatePairing)
+
+for( i in 1:length(locations)){
+  
+  duplicates <- s$site[s$duplicatePairing %in% locations[i]]
+  
+  A <- e[e$site == duplicates[1], ]
+  B <- e[e$site == duplicates[2], ]
+  
+  StartA <- min(A$date)
+  EndA   <- max(A$date)
+  StartB <- min(B$date)
+  EndB   <- max(B$date)
+  
+  # Check if there is overlape
+  if(unique(A$date %in% B$date) == 'FALSE'){
+    
+     endGap   <- max(range(A$date)[1], range(B$date)[1]) - 1
+     startGap <- min(range(A$date)[2], range(B$date)[2]) + 1
+    
+    fillDate <- seq(from = startGap, to = endGap, by = 'day')
+
+    forNaming <- e[e$site == locations[i],]
+    
+    #Fix lengths and  crap...
+    gap <- data.frame(locations[i], 
+               as.numeric(strftime(fillDate, '%Y')),  
+               as.numeric(strftime(fillDate, '%j')),
+               fillDate, 
+               unique(forNaming$AgencyID), 
+               agency, 
+               NA, 
+               NA, 
+               unique(forNaming$Latitude),
+               unique(forNaming$Longitude))
+  
+    colnames(gap) <- colnames(A)
+    
+  } else (print(paste0('Dates overlap. Code will not work on locations # ', i)))
+  
+  tempFrame <- rbind(rbind(A, gap), B)
+  
+  tempFrame$site     <- locations[i]
+  tempFrame$AgencyID <- unique(forNaming$AgencyID)
+  
+  
+  
+  if(i == 1) {newFrame <- tempFrame} else(newFrame <- rbind(newFrame, tempFrame))
+  
+  
+}
+
+# Unchanged sites:
+keepSites <- s$site[which(s$duplicatePairing == 'ONE')]
+keepFrame <- e[e$site %in% keepSites,]
+
+e1 <- rbind(newFrame, keepFrame)
+e1 <- e1[order(e1$site,e1$year,e1$dOY),]
+
+```
+
+```{r Save stremTempData file}
+masterData <- e1
+
+save(masterData, file = paste0('streamTempData_', agency, '.RData'))
+
+```
+
+===============================================================================================================
+
+```{r Join duplicate locations and save Daymet file}
+
+load(paste0('streamTempSitesObservedClimateData_', agency, '.RData'))
+e <- masterData
+
+s1 <- s[which(s$duplicatePairing != 'ONE'),]
+
+locations <- unique(s1$duplicatePairing)
+
+for( i in 1:length(locations)){
+  
+  duplicates <- s$site[s$duplicatePairing %in% locations[i]]
+  
+  A <- e[e$site == duplicates[1], ]
+  B <- e[e$site == duplicates[2], ]
+  
+  StartA <- min(A$date)
+  EndA   <- max(A$date)
+  StartB <- min(B$date)
+  EndB   <- max(B$date)
+  
+  # Check if there is overlape
+  if(unique(A$date %in% B$date) == 'FALSE'){
+    
+    endGap   <- max(range(A$date)[1], range(B$date)[1]) - 1
+    startGap <- min(range(A$date)[2], range(B$date)[2]) + 1
+    
+    fillDate <- seq(from = startGap, to = endGap, by = 'day')
+    
+    forNaming <- e[e$site == locations[i],]
+    
+    #Fix lengths and  crap...
+    gap <- data.frame(locations[i], 
+               as.numeric(strftime(fillDate, '%Y')),  
+               as.numeric(strftime(fillDate, '%j')),
+               fillDate, 
+               NA, #temp
+               unique(forNaming$Latitude),
+               unique(forNaming$Longitude),
+               agency,
+               unique(forNaming$AgencyID), 
+               NA, #dayl
+               NA, #srad
+               NA, #swe
+               NA, #tmax
+               NA, #tmin
+               NA, #vp
+               NA, #airTemp
+               NA) #prcp
+  
+    colnames(gap) <- colnames(A)
+    
+  } else (print(paste0('Dates overlap. Code will not work on locations # ', i)))
+  
+  tempFrame <- rbind(rbind(A, gap), B)
+  
+  tempFrame$site     <- locations[i]
+  tempFrame$AgencyID <- unique(forNaming$AgencyID)
+  
+  if(i == 1) {newFrame <- tempFrame} else(newFrame <- rbind(newFrame, tempFrame))
+
+}
+
+# Unchanged sites:
+keepSites <- s$site[which(s$duplicatePairing == 'ONE')]
+keepFrame <- e[e$site %in% keepSites,]
+
+e1 <- rbind(newFrame, keepFrame)
+
+e1 <- e1[order(e1$site,e1$year,e1$dOY),]
+
+```
+
+
+```{r Save streamTempSitesObservedClimateData file}
+masterData <- e1
+
+save(masterData, file = paste0('streamTempSitesObservedClimateData_', agency, '.RData'))
+```
+
+
+
+
+```{r }
+
+
+
+
+
+
+
+
+
+all(is.na())
+
+

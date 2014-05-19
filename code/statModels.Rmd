@@ -20,21 +20,20 @@ library(ggmap)
 library(foreign)
 library(maptools)
 library(gridExtra)
+library(zoo)
 
-baseDir <- 'C:/KPONEIL/'
+#setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
+setwd('C:/KPONEIL/GitHub/projects/temperatureProject/')
 
 baseDir <- 'C:/Users/Admin_7600/Documents/Hocking/'
+baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
+#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
 
-dataInDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataIn/')
-dataOutDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/dataOut/')
-graphsDir <- paste0(baseDir, 'GitHub/projects/temperatureProject/graphs/')
+dataInDir <- paste0(baseDir, 'dataIn/')
+dataOutDir <- paste0(baseDir, 'dataOut/')
+graphsDir <- paste0(baseDir, 'graphs/')
 
-dataInDir <- paste0(baseDir, 'temperatureProject/dataIn/')
-dataOutDir <- paste0(baseDir, 'temperatureProject/dataOut/')
-graphsDir <- paste0(baseDir, 'temperatureProject/graphs/')
-
-source(paste0(baseDir, 'temperatureProject/code/functions/temperatureModelingFunctions.R'))
-
+source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
 ```
 
 Which agencies do you want to pull data from?
@@ -42,13 +41,20 @@ Which agencies do you want to pull data from?
 
 #If removeSelectSites = TRUE, then the file with the list of sites needs to be specified.
 removeSelectSites <- T
-sitesToRemove <- paste0(baseDir, 'temperatureProject/dataIn/sitesToRemoveAllNE.csv')
+sitesToRemove <- paste0(baseDir, 'dataIn/sitesToRemoveAllNE.csv')
 
 #Do you want all of the plots made?
-makePlots <- T
+makePlots <- F
 
 #Use validation?
-validate=T
+validate=F
+  
+#If validating:
+  # Choose fraction of total # of sites:
+  validateFrac <- 0.1
+
+  #Do you want to create bias maps? (Internet connection required)
+  createBiasMaps <- F
 
 #Data source agencies?
 CTDEP  <- T
@@ -58,7 +64,7 @@ NHFG   <- T
 NHDES  <- T
 USFS   <- T
 VTFWS  <- T
-MEDMR  <- T
+MEDMR  <- F
 MTUSGSYellowstone <- F
 MTUSGSGlacier <- F
 
@@ -67,21 +73,22 @@ dpiIn <- 400
 
 ```
 
-```{r load data}
+```{r load data} 
 
 #Set up data list.
-sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier)
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier )
 sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS', 'VTFWS',  'MTUSGSYellowstone', 'MTUSGSGlacier')
-  
+
 dataSource <- sourceNames[sourceChoice == T]
 
-sourceList <- paste0(paste0(dataSource, collapse = '_'))
+#sourceList <- paste0(paste0(dataSource, collapse = '_'))
+sourceList <- paste0(paste0(dataSource, collapse = '_'), '_2014-04-24')
 
 #Load "et" for the agencies:
 load(paste0(dataOutDir, sourceList,  '/et_', sourceList, '.RData'))
 
-#Pull Lat/Lon so it doesn't get doubled up
-et <- et[,-which(names(et) %in% c('Latitude', 'Longitude'))]
+#Pull duplicate columns so they doesn't get doubled up
+et <- et[,-which(names(et) %in% c('Latitude', 'Longitude', 'StreamOrder', 'HUC_4', 'HUC_8.x', 'HUC_8.y', 'HUC_12', 'agency'))]
 
 #Load in covariate data to merge into slopes df [no day data]
 for ( i in 1:length(dataSource)){
@@ -103,7 +110,7 @@ masterData    <- newDay
 covariateData <- covs
 
 #Merge climate data into main dataframe:
-et <- merge(et, masterData, by = c('site', 'year', 'dOY'), all.x=T, sort = F )
+et <- merge(et, masterData, by = c('site', 'date', 'year', 'dOY'), all.x=T, sort = F )
 
 et$flow <- NA
 et$tAirMin <- et$tmin; et$tAirMax <- et$tmax
@@ -113,6 +120,12 @@ covariateData <- replace(covariateData, is.na(covariateData), NA)
 
 #Make site a character string so the "merge" function works:
 covariateData$site <- as.character(covariateData$site)
+
+##For testing
+#testSites <- c("MAUSGS_WB_JIMMY", "MAUSGS_SEC_45_DL", "MAUSGS_WEST_BROOK", "MAUSGS_SEC_6_DL", "MAUSGS_SEC_30_DL", "MAUSGS_WB_OBEAR", "MAUSGS_WB_MITCHELL")
+
+#et <- et[et$site %in% testSites,]
+#covariateData <- covariateData[covariateData$site %in% testSites,]
 
 #=================================================================================================================
 #Scale the variables used in the model. Some get log-scaled depending on their distribution over the sites:
@@ -130,7 +143,6 @@ covariateData$AgricultureLS          <- (log(covariateData$Agriculture          
 covariateData$TotDASqKMLS            <- (log(covariateData$TotDASqKM            + 0.001) - mean(log(covariateData$TotDASqKM            + 0.001), na.rm=T)) / sd(log(covariateData$TotDASqKM            + 0.001), na.rm=T)
 covariateData$SurficialCoarseCLS     <- (log(covariateData$SurficialCoarseC     + 1    ) - mean(log(covariateData$SurficialCoarseC     + 1    ), na.rm=T)) / sd(log(covariateData$SurficialCoarseC     + 1    ), na.rm=T)
 covariateData$ImpoundmentsOpenSqKMLS <- (log(covariateData$ImpoundmentsOpenSqKM + 1    ) - mean(log(covariateData$ImpoundmentsOpenSqKM + 1    ), na.rm=T)) / sd(log(covariateData$ImpoundmentsOpenSqKM + 1    ), na.rm=T)
-
 
 et <- merge(et, covariateData, by = 'site', all.x=T, sort = F )
 
@@ -165,12 +177,40 @@ siteData <- merge(x=siteData, y=obsBySiteYear, all.x=T)
 
 ```
 
-```{r lag airTemp}
+```{r lag airTemp & prcp}
 et <- et[order(et$count),] # just to make sure et is ordered for the slide function
 
+# airTemp
 et <- slide(et, Var = "airTemp", GroupVar = "site", slideBy = -1, NewVar='airTempLagged1')
 et <- slide(et, Var = "airTemp", GroupVar = "site", slideBy = -2, NewVar='airTempLagged2')
+
+# prcp
+et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -1, NewVar='prcpLagged1')
+et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
+et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
+
 ```
+
+Left out to save time:
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 5-day mean of prcp 
+siteYearCombos <- unique(et[,c('site','year')])
+
+et$prcp5Day <- NA
+
+window <- 5
+for (i in 1:nrow(siteYearCombos)){
+
+  print(c(i,as.character(siteYearCombos$site[i]),siteYearCombos$year[i],i/nrow(siteYearCombos)))
+  
+  currSite <- which(et$site == as.character(siteYearCombos$site[i]) & et$year == siteYearCombos$year[i] )
+
+  #Need this so sites with very short records don't crash the loop.
+  if(length(currSite) >= window){currMean <-  rollapply(et$prcp[currSite], width=window, fill=NA, mean, align = 'left')} else(currMean <- NA)
+  
+  et$prcp5Day[currSite] <- currMean
+}
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ```{r check out data}
 #pairs(~Latitude+Longitude+Forest+ Impervious+ Agriculture+ BasinElevationM+ ReachSlopePCNT+ TotDASqKM+ WetlandOrWater+ SurficialCoarseC,data=et)
@@ -202,229 +242,316 @@ if(makePlots) {
   ggsave( file=paste0(graphsDir, sourceList,'/gTileHeat.png'), plot=gTileHeat, dpi=dpiIn , width=8,height=5, units='in' )
 
 }
+
 ```
 
 ```{r scale daymet vars and split et into rising and falling segments}
-# Don't use "scale" because it creates a data type with attributes that make is difficult to use predict
 
-# Log scale swe before splitting into segments:
-et$sweL <- log(et$swe + 0.001)
+#List the variables you want logged.
+logVariables <- c('swe', 'prcp', 'prcpLagged1', 'prcpLagged2', 'prcpLagged3')# 'prcp5Day'
 
-# Split dataframe into segments:
-et2 <- et[et$segment %in% 2,]
-et3 <- et[et$segment %in% 3,]
+#List the variables you want scaled. (If you want the logged ones scaled include them as well)
+scaleVariables <- c('swe', 'dayl', 'srad', 'prcp', 'prcpLagged1', 'prcpLagged2', 'prcpLagged3')# 'prcp5Day'
 
-# Scale daymet vaiables in segment 2:
-et2$daylS <- (et2$dayl - mean(et2$dayl,na.rm=T)) / sd(et2$dayl, na.rm=T)
-et2$sradS <- (et2$srad - mean(et2$srad,na.rm=T)) / sd(et2$srad, na.rm=T)
-et2$sweLS <- (et2$sweL - mean(et2$sweL,na.rm=T)) / sd(et2$sweL, na.rm=T)
+# Run the scaling funtion:
+logScaledData <- loggAndScaleDaymet(et, logVariables, scaleVariables)
 
-# Scale daymet vaiables in segment 2:
-et3$daylS <- (et3$dayl - mean(et3$dayl,na.rm=T)) / sd(et3$dayl, na.rm=T)
-et3$sradS <- (et3$srad - mean(et3$srad,na.rm=T)) / sd(et3$srad, na.rm=T)
-et3$sweLS <- (et3$sweL - mean(et3$sweL,na.rm=T)) / sd(et3$sweL, na.rm=T) #Make sure all values aren't zero if you want to use this in stats models:
-
+# Rename output:
+et  <- logScaledData[[1]] # Main dataframe
+et2 <- logScaledData[[2]] # Segment 2
+et3 <- logScaledData[[3]] # Segment 3
 ```
 
-
+Models for rising & falling segments
+------------------------------------
+When adding new models:
+   1) Follow the structure of previously defined models and name it: "mX"
+   2) Assign the description of the model and name it: "dX"
+   3) Add new models to the model lists ("segModels" and "segModelsDescriptions")
+  
 ```{r regression temp~airTemp+...}
 #This section explores modeling temperature using fixed covariate data and time series of climate data.
 # Models are created by segment (warming and cooling).
-
-#Do you want to create bias maps? (Internet connection required)
-createBiasMaps <- T
 
 #=================================================================================================================
 #                                         Define the Segment Models:
 #=================================================================================================================
 
-#Model 0: Air temp & lags only
-#---------------------------------------------------------------------
-m0 <- temp~airTemp+airTempLagged1+airTempLagged2
+#Model 1:
+d1 <- 'Air temp & lags only'
+#---------------------------
+m1 <- 'temp~airTemp+airTempLagged1+airTempLagged2'
 
-#Model 1: All main effects
-#---------------------------------------------------------------------
-m1 <- temp~airTemp+airTempLagged1+airTempLagged2+
+
+#Model 2:
+
+d2 <- 'All main effects'
+#-----------------------
+m2 <-'temp~airTemp+airTempLagged1+airTempLagged2+
               LatitudeS+LongitudeS+
               ForestS+ AgricultureLS+ 
               BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
               WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
-              daylS + sradS + sweLS
+              daylS + sradS + sweLS'
 
-#Model 2: All two-way interactions 
-#---------------------------------------------------------------------
-m2 <- temp~(airTemp+airTempLagged1+airTempLagged2+
+
+#Model 3:
+d3 <- 'All two-way interactions'
+#-------------------------------
+m3 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
               LatitudeS+LongitudeS+
               ForestS+ AgricultureLS+ 
               BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
               WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
-              daylS + sradS + sweLS)^2
+              daylS + sradS + sweLS)^2'
 
-#Model 3: Selected interactions
-#---------------------------------------------------------------------
-m3 <- temp~airTemp + airTempLagged1 + airTempLagged2 + LatitudeS + LongitudeS + BasinElevationMS + ReachSlopePCNTS + 
-             TotDASqKMLS + SurficialCoarseCLS + ForestS + AgricultureLS + WetlandOrWaterS + ImpoundmentsOpenSqKMLS +
-             daylS + sradS + sweLS + 
-             airTemp*ReachSlopePCNTS + airTemp*TotDASqKMLS + airTemp*WetlandOrWaterS + 
-             airTemp*ImpoundmentsOpenSqKMLS + airTemp*sweLS + 
-             airTempLagged1 + airTempLagged1*ReachSlopePCNTS + airTempLagged1*TotDASqKMLS + airTempLagged1*WetlandOrWaterS + 
-             airTempLagged1*ImpoundmentsOpenSqKMLS + airTempLagged1*sweLS + 
-             airTempLagged2 + airTempLagged2*ReachSlopePCNTS + airTempLagged2*TotDASqKMLS + airTempLagged2*WetlandOrWaterS + 
-             airTempLagged2*ImpoundmentsOpenSqKMLS + airTempLagged2*sweLS + 
-             ReachSlopePCNTS*ImpoundmentsOpenSqKMLS + ReachSlopePCNTS*daylS + ReachSlopePCNTS*sradS +
-             TotDASqKMLS*ImpoundmentsOpenSqKMLS + TotDASqKMLS*daylS + TotDASqKMLS*sradS +
-             SurficialCoarseCLS*ForestS +   
-             ForestS*daylS + ForestS*sradS + ForestS*sweLS +
-             WetlandOrWaterS*daylS + WetlandOrWaterS*sradS + 
-             ImpoundmentsOpenSqKMLS*daylS + ImpoundmentsOpenSqKMLS*sradS + 
-             daylS*sweLS + 
-             sradS*sweLS
-
-#Model 4: Two-way interactions  without Daymet data.
-#---------------------------------------------------------------------
-m4 <- temp~(airTemp+airTempLagged1+airTempLagged2+
-              #segment+
+#Model 4:
+d4 <- 'All main effects (add prcp)'
+#----------------------------------
+m4 <- 'temp~airTemp+airTempLagged1+airTempLagged2+
               LatitudeS+LongitudeS+
               ForestS+ AgricultureLS+ 
               BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
-              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS 
-              )^2
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS'
+
+#Model 5:
+d5 <- 'All two-way interactions (add prcp)'
+#------------------------------------------
+m5 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS)^2'
+
+#Model 6:
+d6 <- 'All two-way interactions (prcp Lag +1)'
+#---------------------------------------------
+m6 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLagged1LS)^2'
+
+#Model 7:
+d7 <- 'All two-way interactions (prcp Lag +2)'
+#---------------------------------------------
+m7 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLagged2LS)^2'
 
 
+#Model 8:
+d8 <- 'All two-way interactions (prcp Lag +3)'
+#---------------------------------------------------------------------
+m8 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLagged3LS)^2'
+
+
+#Model 9:
+d9 <- 'All two-way interactions (prcp 5-day mean)'
+#-------------------------------------------------
+m9 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcp5DayLS)^2'
+
+#Model 10:
+d10 <- 'All two-way interactions (prcp  + prcpLags 1, 2, & 3)'
+#------------------------------------------------------
+m10 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS + prcpLagged1LS + prcpLagged2LS + prcpLagged3LS)^2'
+
+#Model 11:
+d11 <- 'All two-way interactions (prcp + prcp Lag +1)'
+#---------------------------------------------
+m11 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS + prcpLagged1LS)^2'
+
+#Model 12:
+d12 <- 'All two-way interactions (prcp + prcp Lag +2)'
+#---------------------------------------------
+m12 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS  + prcpLagged2LS)^2'
+
+#Model 13:
+d13 <- 'All two-way interactions (prcp + prcp Lag +3)'
+#---------------------------------------------------------------------
+m13 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS + prcpLagged3LS)^2'
+
+#Model 14:
+d14 <- 'All two-way interactions (prcp + prcp 5-day mean)'
+#-------------------------------------------------
+m14 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS + prcp5DayLS)^2'
+
+#Model 15:
+d15 <- 'All two-way interactions (all prcp terms)'
+#------------------------------------------------------
+m15 <- 'temp~(airTemp+airTempLagged1+airTempLagged2+
+              LatitudeS+LongitudeS+
+              ForestS+ AgricultureLS+ 
+              BasinElevationMS+ ReachSlopePCNTS+ TotDASqKMLS+ 
+              WetlandOrWaterS+ SurficialCoarseCLS+ImpoundmentsOpenSqKMLS+ 
+              daylS + sradS + sweLS + prcpLS  + prcpLagged1LS + prcpLagged2LS + prcpLagged3LS + prcp5DayLS)^2'
+
+segModels             <- list(m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15)
+segModelsDescriptions <- list(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15)
+```
+
+# If you already know the model you want to run then run this code with the model entered. Otherwise skip to next section to compare models.
+```{r Already know model}
+
+segModels             <- list(m10)
+segModelsDescriptions <- list(d10)
+
+```
+
+```{r Run and validate models}
 #=================================================================================================================
 #                                                    Segment 2
 #=================================================================================================================
-#Validate for subset of sites:
-valData2 <- et2[et2$agency == 'MEDMR',]
+#Validate for a random subset of sites:
 
+randomSitesS2 <- sample(unique(et2$site), size = validateFrac*length(unique(et2$site)))
+valData2    <- et2[et2$site %in% randomSitesS2,]
 
-m0S2 <- lm(m0, data=et2)
-#-----------------------
-if(validate){
-  vm0S2 <- validateModel( m0S2, et2, valData2 )
-  if(createBiasMaps) {makeBiasMap(vm0S2)}
-}
+mS2  <- list()
+vmS2 <- list()
 
-m1S2 <- lm(m1, data=et2)
-#-----------------------
-if(validate){
-  vm1S2 <- validateModel( m1S2, et2, valData2 )
-  if(createBiasMaps) { makeBiasMap(vm1S2) }
-}
-
-m2S2 <- lm(m2, data=et2)
-#-----------------------
-if(validate){
-  vm2S2 <- validateModel( m2S2, et2, valData2 )
-  if(createBiasMaps) { makeBiasMap(vm2S2) }
-}
-
-m3S2 <- lm(m3, data=et2)
-#-----------------------
-if(validate){
-  vm3S2 <- validateModel( m3S2, et2, valData2 )
-  if(createBiasMaps) { makeBiasMap(vm3S2) }
-}
-
-m4S2 <- lm(m4, data=et2)
-#-----------------------
-if(validate){
-  vm4S2 <- validateModel( m4S2, et2, valData2 )
-  if(createBiasMaps) { makeBiasMap(vm4S2) }
-}
-
-
-#-------------------
-#Compare the models:
-#-------------------
-if(validate){
-  modelMetricsS2 <- rbind(vm0S2$means, vm1S2$means, vm2S2$means, vm3S2$means, vm4S2$means)
-  rownames(modelMetricsS2) <- c('vm0S2', 'vm1S2', 'vm2S2', 'vm3S2', 'vm4S2')
-  modelMetricsS2 <- as.data.frame(modelMetricsS2)
-  modelMetricsS2$AIC.df <- AIC(m0S2,m1S2,m2S2,m3S2, m4S2)$df
-  modelMetricsS2$AIC <- AIC(m0S2,m1S2,m2S2,m3S2, m4S2)$AIC
-  modelMetricsS2$Sigma <- c(summary(m0S2)$sigma, summary(m1S2)$sigma,summary(m2S2)$sigma,summary(m3S2)$sigma,summary(m4S2)$sigma)
+for (i in 1:length(segModels)){
+  print(i/length(segModels))  
   
-  modelMetricsS2
-} else ( AIC(m0S2,m1S2,m2S2,m3S2, m4S2))
-
-
-
-#=================================================================================================================
-#                                                     Segment 3
-#=================================================================================================================
-valData3 <- et3[et3$agency == 'MEDMR',]
-
-
-m0S3 <- lm(m0, data=et3)
-#-----------------------
-if(validate){
-  vm0S3 <- validateModel( m0S3,et3, valData3 )
-  if(createBiasMaps) { makeBiasMap(vm0S3) }
+  mS2[[i]] <- lm(as.formula(segModels[[i]]), data=et2)
+  
+  if (validate){
+    vmS2[[i]] <- validateModel( mS2[[i]], et2, valData2 )
+    if(createBiasMaps) {makeBiasMap(vmS2[[i]])}
+  }
 }
 
-m1S3 <- lm(m1, data=et3)
-#-----------------------
-if(validate){
-  vm1S3 <- validateModel( m1S3, et3, valData3 )
-  if(createBiasMaps) { makeBiasMap(vm1S3) }
-}
-
-
-m2S3 <- lm(m2, data=et3)
-#-----------------------
-summary(m2S3)$sigma
-
-if(validate){
-  vm2S3 <- validateModel( m2S3,et3, valData3 )
-  if(createBiasMaps) { makeBiasMap(vm2S3) }
-}
-
-m3S3 <- lm(m3, data=et3)
-#-----------------------
-if(validate){
-  vm3S3 <- validateModel( m3S3, et3, valData3 )
-   if(createBiasMaps) {makeBiasMap(vm3S3) }
-}
-
-m4S3 <- lm(m4, data=et3)
-#-----------------------
-if(validate){
-  vm4S3 <- validateModel( m4S3, et3, valData3 )
-  if(createBiasMaps) { makeBiasMap(vm4S3) }
-}
-
-
+#-------------------
 #Compare the models:
 #-------------------
 if(validate){
-  modelMetricsS3 <- rbind(vm0S3$means, vm1S3$means, vm2S3$means, vm3S3$means, vm4S3$means)
-  rownames(modelMetricsS3) <- c('vm0S3', 'vm1S3', 'vm2S3', 'vm3S3', 'vm4S3')
-  modelMetricsS3 <- as.data.frame(modelMetricsS3)
-  modelMetricsS3$AIC.df <- AIC(m0S3,m1S3,m2S3,m3S3,m4S3)$df
-  modelMetricsS3$AIC <- AIC(m0S3,m1S3,m2S3,m3S3,m4S3)$AIC
-  modelMetricsS3$Sigma <- c(summary(m0S3)$sigma, summary(m1S3)$sigma,summary(m2S3)$sigma,summary(m3S3)$sigma,summary(m4S3)$sigma)
-  modelMetricsS3
-} else(AIC(m0S3,m1S3,m2S3,m3S3,m4S3))
+  for ( i in 1:length(vmS2) ){   
+      a <- data.frame(vmS2[[i]]$means, extractAIC(mS2[[i]])[1], extractAIC(mS2[[i]])[2], summary(mS2[[i]])$sigma, segModelsDescriptions[[i]])
+
+      if( i == 1 ) { modelMetricsS2 <- a} else ( modelMetricsS2 <- rbind(modelMetricsS2, a))
+  }# for loop
+  
+} else ( for ( i in 1:length(mS2) ){   
+      a <- data.frame(extractAIC(mS2[[i]])[1], extractAIC(mS2[[i]])[2], summary(mS2[[i]])$sigma, segModelsDescriptions[[i]])
+
+      if( i == 1 ) { modelMetricsS2 <- a} else ( modelMetricsS2 <- rbind(modelMetricsS2, a))
+  }# for loop
+  
+)
+
+# Label comparison table
+if(validate) {colnames(modelMetricsS2) <- c('meanRMSE', 'meanBiasMean', 'meanBiasSD', 'AIC.df', 'AIC', 'Sigma', 'Model Description')} else (colnames(modelMetricsS2) <- c('AIC.df', 'AIC', 'Sigma', 'Model Description'))
+rownames(modelMetricsS2) <-   paste0( 'm', seq(from =1, to = length(mS2), by = 1), 'S2')  
+
+modelMetricsS2
+
+#=================================================================================================================
+#                                                    Segment 3
+#=================================================================================================================
+#Validate for a random subset of sites:
+
+randomSitesS3 <- sample(unique(et3$site), size = validateFrac*length(unique(et3$site)))
+valData3    <- et3[et3$site %in% randomSitesS3,]
+
+mS3  <- list()
+vmS3 <- list()
+
+for (i in 1:length(segModels)){
+  print(i/length(segModels))
+  
+  mS3[[i]] <- lm(as.formula(segModels[[i]]), data=et3)
+  
+  if (validate){
+    vmS3[[i]] <- validateModel( mS3[[i]], et3, valData3 )
+    if(createBiasMaps) {makeBiasMap(vmS3[[i]])}
+  }
+}
+
+#-------------------
+#Compare the models:
+#-------------------
+if(validate){
+  for ( i in 1:length(vmS3) ){   
+      a <- data.frame(vmS3[[i]]$means, extractAIC(mS3[[i]])[1], extractAIC(mS3[[i]])[2], summary(mS3[[i]])$sigma, segModelsDescriptions[[i]])
+
+      if( i == 1 ) { modelMetricsS3 <- a} else ( modelMetricsS3 <- rbind(modelMetricsS3, a))
+  }# for loop
+
+} else ( for ( i in 1:length(mS3) ){   
+      a <- data.frame(extractAIC(mS3[[i]])[1], extractAIC(mS3[[i]])[2], summary(mS3[[i]])$sigma, segModelsDescriptions[[i]])
+
+      if( i == 1 ) { modelMetricsS3 <- a} else ( modelMetricsS3 <- rbind(modelMetricsS3, a))
+  }# for loop
+)
+
+# Label comparison table
+if(validate) {colnames(modelMetricsS3) <- c('meanRMSE', 'meanBiasMean', 'meanBiasSD', 'AIC.df', 'AIC', 'Sigma', 'Model Description')} else (colnames(modelMetricsS3) <- c('AIC.df', 'AIC', 'Sigma', 'Model Description'))
+rownames(modelMetricsS3) <-   paste0( 'm', seq(from =1, to = length(mS3), by = 1), 'S3')  
 
 
-# Want to save the metrics but it's a "list" so can't be a .csv for some reason...
+modelMetricsS3
+```
+
+```{r Save model metrics}
+#=================================================================================================================
+#                                                   Save the model metrics
+#=================================================================================================================
+
+# Want to save the metrics but it's a "list" so can't be a .csv for some reason. Savings as .RData for now.
 if(validate){
   segmentModelMetrics <- rbind(modelMetricsS2, modelMetricsS3)
   save(segmentModelMetrics, file=paste0(dataOutDir, sourceList,'/segmentModelMetrics.RData' ) )
 }
-
-
 ```
 
-
 ```{r Choose models to use and predict stream temp values}
-#After model comparison, choose which model to use:
+#After model comparison, choose which model to use to predict:
 
-finalModelS2  <- m2S2
-finalModelS3  <- m2S3
-finalValModS2 <- vm2S2
-finalValModS3 <- vm2S3
+predictionModelNum <- 1
+
+finalModelS2  <- mS2 [[predictionModelNum]]; finalModelS3   <- mS3 [[predictionModelNum]]
+if(validate) {finalValModS2 <- vmS2[[predictionModelNum]]; finalValModS3  <- vmS3[[predictionModelNum]]}
 
 # Predict stream temperatures:
 et2[,c('pred', 'lowr', 'upr')] <- predict (finalModelS2, newdata=et2, interval = "confidence") #default confidence interval (CI) = 95%
@@ -480,98 +607,82 @@ if(validate){
 }
 ```
 
-
 Models for breakpoints
+----------------------
+When adding new models:
+   1) Follow the structure of previously defined models and name it: "bpmX"
+   2) Assign the description of the model and name it: "bpdX"
+   3) Add new models to the model lists ("bdModels" and "bpModelsDescriptions")
 
-```{r regression bp1~+...}
-#This section models the spring breakpoint as a function of fixed covariates.
-
-#=================================================================================================================
-#                                           Define the Breakpoint Models
-#=================================================================================================================
-
-#Breakpoint model 1: No interactions.
-#------------------------------------
-bpm1Vars <- c('LatitudeS', 'LongitudeS', 'ForestS', 'AgricultureLS', 'BasinElevationMS', 'ReachSlopePCNTS', 'TotDASqKMLS', 'WetlandOrWaterS', 'SurficialCoarseCLS')
-bpm1RE   <- '(1|year)'
-
-#Breakpoint model 2: Full interactions.
-#--------------------------------------
-bpm2Vars <- c('LatitudeS', 'LongitudeS', 'ForestS', 'AgricultureLS', 'BasinElevationMS', 'ReachSlopePCNTS', 'TotDASqKMLS', 'WetlandOrWaterS', 'SurficialCoarseCLS')
-bpm2RE   <- '(1|year)'
-
-#Breakpoint model 2: Full interactions. Impoundments added.
-#----------------------------------------------------------
-bpm3Vars <- c('LatitudeS', 'LongitudeS', 'ForestS', 'AgricultureLS', 'BasinElevationMS', 'ReachSlopePCNTS', 'TotDASqKMLS', 'WetlandOrWaterS', 'SurficialCoarseCLS', 'ImpoundmentsOpenSqKMLS')
-bpm3RE   <- '(1|year)'
+```{r regression bp~+...}
+#This section models the breakpoints as a function of fixed covariates.
 
 #=================================================================================================================
-#                                                     Breakpoint 1
-#=================================================================================================================
-breakpoint <- 'springBP'
-
-bpm1     <- as.formula(paste(breakpoint, "~",paste(bpm1Vars, collapse="+"), "+", bpm1RE))
-m1bp1 <- lmer(bpm1, data=siteData)
-
-bpm2     <- as.formula(paste(breakpoint, "~ (",paste(bpm2Vars, collapse="+"), ")^2 +", bpm2RE))
-m2bp1 <- lmer(bpm2, data=siteData)
-
-bpm3     <- as.formula(paste(breakpoint, "~ (",paste(bpm3Vars, collapse="+"), ")^2 +", bpm3RE))
-m3bp1 <- lmer(bpm3, data=siteData)
-
-#anova(m1bp1)
-#anova(m2bp1)
-#anova(m3bp1)
-
-#=================================================================================================================
-#                                                     Breakpoint 2
+#                                          Define the structure of the breakpoint models
 #=================================================================================================================
 
-breakpoint <- 'summerBP'
+#Breakpoint Model 1:
+#-------------------
+bpd1 <- 'No interactions'
+bpm1 <- '~LatitudeS + LongitudeS + ForestS + AgricultureLS +  BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS +(1|year)'
 
-bpm1     <- as.formula(paste(breakpoint, "~",paste(bpm1Vars, collapse="+"), "+", bpm1RE))
-m1bp2 <- lmer(bpm1, data=siteData)
+#Breakpoint Model 2:
+#-------------------
+bpd2 <- 'Full interactions'
+bpm2 <-  '~ ( LatitudeS + LongitudeS + ForestS + AgricultureLS + BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS )^2 + (1|year)'
 
-bpm2     <- as.formula(paste(breakpoint, "~ (",paste(bpm2Vars, collapse="+"), ")^2 +", bpm2RE))
-m2bp2 <- lmer(bpm2, data=siteData)
+#Breakpoint Model 3: 
+#-------------------
+bpd3 <- 'Full interactions. Impoundments added.'
+bpm3 <-  '~ ( LatitudeS + LongitudeS + ForestS + AgricultureLS + BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS + ImpoundmentsOpenSqKMLS )^2 + (1|year)'
 
-bpm3     <- as.formula(paste(breakpoint, "~ (",paste(bpm3Vars, collapse="+"), ")^2 +", bpm3RE))
-m3bp2 <- lmer(bpm3, data=siteData)
-
-#anova(m1bp2)
-#anova(m2bp2)
-#anova(m3bp2)
+# List all of the models for reference later:
+bpModels <- list(bpm1, bpm2, bpm3)
+bpModelsDescriptions <- list(bpd1, bpd2, bpd3)
 
 #=================================================================================================================
-#                                                     Breakpoint 3
+#                                               Breakpoint Models
 #=================================================================================================================
 
-breakpoint <- 'fallBP'
+bp1mods <- list()
+bp2mods <- list()
+bp3mods <- list()
 
-bpm1     <- as.formula(paste(breakpoint, "~",paste(bpm1Vars, collapse="+"), "+", bpm1RE))
-m1bp3 <- lmer(bpm1, data=siteData)
+for ( i in 1:length(bpModels)){
+  
+  # Breakpoint Models
+  bp1mods[[i]] <- lmer(as.formula(paste('springBP', bpModels[[i]])), data=siteData)
+  bp2mods[[i]] <- lmer(as.formula(paste('summerBP', bpModels[[i]])), data=siteData)
+  bp3mods[[i]] <- lmer(as.formula(paste('fallBP'  , bpModels[[i]])), data=siteData)
+  
+  # Breakpoint Model AICs
+  spr <- data.frame(extractAIC(bp1mods[[i]])[1], extractAIC(bp1mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(spr) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { sprBPModelMetrics <- spr} else ( sprBPModelMetrics <- rbind(sprBPModelMetrics, spr))
 
-bpm2     <- as.formula(paste(breakpoint, "~ (",paste(bpm2Vars, collapse="+"), ")^2 +", bpm2RE))
-m2bp3 <- lmer(bpm2, data=siteData)
+  smr <- data.frame(extractAIC(bp2mods[[i]])[1], extractAIC(bp2mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(smr) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { smrBPModelMetrics <- smr} else ( smrBPModelMetrics <- rbind(smrBPModelMetrics, smr))
 
-bpm3     <- as.formula(paste(breakpoint, "~ (",paste(bpm3Vars, collapse="+"), ")^2 +", bpm3RE))
-m3bp3 <- lmer(bpm3, data=siteData)
+  fal <- data.frame(extractAIC(bp3mods[[i]])[1], extractAIC(bp3mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(fal) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { falBPModelMetrics <- fal} else ( falBPModelMetrics <- rbind(falBPModelMetrics, fal)) 
+}
 
-#anova(m1bp3)
-#anova(m2bp3)
-#anova(m3bp3)
+sprBPModelMetrics
+smrBPModelMetrics
+falBPModelMetrics
 
-AIC(m1bp1,m2bp1,m3bp1)
-AIC(m1bp2,m2bp2,m3bp2)
-AIC(m1bp3,m2bp3,m3bp3)
+#Checked "AIC" vs "extractAIC" on these models and they give the same values.
 ```
 
 ```{r Choose models to use and predict breakpoints}
 
-finalModBP1 <- m3bp1
-finalModBP2 <- m3bp2
-finalModBP3 <- m3bp3
+bpModelNum <- 3
 
+finalModBP1 <- bp1mods[[bpModelNum]]
+finalModBP2 <- bp2mods[[bpModelNum]]
+finalModBP3 <- bp3mods[[bpModelNum]]
 
 # not sure why need this [allow.new.levels=T] but throws an error otherwise
 #may be because year is in the df
@@ -596,7 +707,6 @@ save(siteData,file=paste0(dataOutDir, sourceList,'/siteDataWBPs_', sourceList, '
 ```
 
 ```{r Predicted BP graphs}
-
 
 if ( makePlots ) {
 
@@ -640,7 +750,9 @@ if ( makePlots ) {
 }
 ```
 
-  
+
+
+
 
 
 
@@ -656,19 +768,19 @@ Predict values for selected catchements
 #Pick the area you want to predict for. This is done by selection of daymet tiles:
 # See Map Here: http://daymet.ornl.gov/sites/default/files/images/Tiles_on_LCC_projection_300dpi_labels.jpg
 
-DaymetTiles <- c(12116, 12117)
+DaymetTiles <- c(11754, 11755, 11934, 11935, 12114, 12115)
 
 Year <- 2010
 
 #Read in NHD catchments you want to predict for. This should fall within the boundaries of the daymet tiles above.
 proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
 
-catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/MEDMR_Region_NHDCatchment.shp", proj4string=CRS(proj4.NHD))
+catchments <- readShapePoly ( "C:/KPONEIL/USGS/NHDPlusV2/Modified Versions/CTRiverStates_NHDCatchment.shp", proj4string=CRS(proj4.NHD))
 
 features <- catchments$FEATUREID
 
 #Load the observed covariate data:
-load(paste0(dataInDir, 'NENY_CovariateData_2014-03-12.RData'))
+load(paste0(dataInDir, 'NENY_CovariateData_2014-04-28.RData'))
 
 #Scale the covariates for prediction to match the model inputs:
 #--------------------------------------------------------------
@@ -715,139 +827,150 @@ for ( i in 1:length(DaymetTiles)){
   print(i)
   
   # Read in daily data for tile:
-  #-----------------------------
+  # ============================
   setwd("C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/DaymetClimateData")
   
   load(paste0('NHD_DaymetTile_' , DaymetTiles[i], '_', Year, '.RData'))
   
+  # Index the prediction data that matches the Daymet tile:
   predictionStatsTile <- predictionStats[predictionStats$FEATUREID %in% FullRecord$FEATUREID, ]
 
+  # Trim the Daymet tile dataframes to the polygon of catchments you are interested in:
   if(exists('features')){predictionStatsTile <- predictionStatsTile[predictionStatsTile$FEATUREID %in% features, ]}
   if(exists('features')){FullRecord <- FullRecord[FullRecord$FEATUREID %in% features,]}
   
-  FullRecord$site <- FullRecord$FEATUREID
-
+  # Renaming:
+  names(FullRecord         )[names(FullRecord         ) == 'FEATUREID'] <- 'site'
+  names(predictionStatsTile)[names(predictionStatsTile) == 'FEATUREID'] <- 'site' 
+    
   # Merge in bps and assign segments. Do here to make FullRecord smaller:
-  #----------------------------------------------------------------------
-  FullRecord <- merge( x=FullRecord, y=predictionStatsTile, all.x=T, by = 'FEATUREID' )
+  # =====================================================================
+  FullRecord <- merge( x=FullRecord, y=predictionStatsTile, all.x=T, by = c('site', 'year' ) )
   
   #limit FullRecord to between bp1 and bp3 and assign segments
   FullRecord <- FullRecord[FullRecord$dOY > FullRecord$bp1 & 
-                         FullRecord$dOY < FullRecord$bp3,]
+                           FullRecord$dOY < FullRecord$bp3,]
+  
   FullRecord$segment <- ifelse( FullRecord$dOY > FullRecord$bp1 & 
                                FullRecord$dOY <= FullRecord$bp2, 2,
-                       ifelse( FullRecord$dOY > FullRecord$bp2 &
+                        ifelse( FullRecord$dOY > FullRecord$bp2 &
                                FullRecord$dOY <= FullRecord$bp3, 3, NA))
   
-  # get rid of site/segment combos with all low # of obs
-  counts <- ddply( FullRecord, .(site,segment), summarize, count=length(na.omit(airTemp)))
+  
+  # Get rid of site/segment combos with all low # of obs:
+  # =====================================================
+  counts     <- ddply( FullRecord, .(site,segment), summarize, count=length(na.omit(airTemp)))
   FullRecord <- merge( x=FullRecord, y=counts, all.x=T )
   FullRecord <- FullRecord[ FullRecord$count > 3, ]
 
+  # Do the same for prcp. Need to look into why there are NAs
+  counts1    <- ddply( FullRecord, .(site,segment), summarize, count1=length(na.omit(prcp)))
+  FullRecord <- merge( x=FullRecord, y=counts1, all.x=T )
+  FullRecord <- FullRecord[ FullRecord$count1 > 3, ]
   
-  #Scale the daymet variables the same as for the observed sites:
-  #--------------------------------------------------------------  
-  FullRecord$sweL <- log(FullRecord$swe + 0.001)
   
-  FR2 <- FullRecord[FullRecord$segment %in% 2,]
-  FR3 <- FullRecord[FullRecord$segment %in% 3,]
+  # Lag select daymet variables: (slow for big datasets)
+  # ============================
+  FullRecord <- FullRecord[order(FullRecord$site,FullRecord$dOY),] # just to make sure FullRecord is ordered for the slide function
   
-  FR2day <- data.frame( FR2[,c('site', 'year.x', 'dOY')], 
-                        sweLS = (FR2$sweL-mean(FR2$sweL,na.rm=T))/sd(FR2$sweL,na.rm=T), 
-                        daylS = (FR2$dayl-mean(FR2$dayl,na.rm=T))/sd(FR2$dayl,na.rm=T), 
-                        sradS = (FR2$srad-mean(FR2$srad,na.rm=T))/sd(FR2$srad,na.rm=T))
-  
-  FR3day <- data.frame( FR3[,c('site', 'year.x', 'dOY')], 
-                        sweLS = (FR3$sweL-mean(FR3$sweL,na.rm=T))/sd(FR3$sweL,na.rm=T),              
-                        daylS = (FR3$dayl-mean(FR3$dayl,na.rm=T))/sd(FR3$dayl,na.rm=T), 
-                        sradS = (FR3$srad-mean(FR3$srad,na.rm=T))/sd(FR3$srad,na.rm=T))
-  
-  FRday <- rbind(FR2day, FR3day)
-  
-  FullRecord <- merge(FullRecord, FRday, by = c('site', 'year.x', 'dOY'), all.x = T, sort = F)
-
-  #############################
-  # lag air temp
-  FullRecord <- FullRecord[order(FullRecord$FEATUREID,FullRecord$dOY),] # just to make sure FullRecord is ordered for the slide function
-  
-  # these are slow for big datasets...
+  # airTemp
   FullRecord <- slide(FullRecord, Var = "airTemp", GroupVar = "site", slideBy = -1, NewVar='airTempLagged1')
   FullRecord <- slide(FullRecord, Var = "airTemp", GroupVar = "site", slideBy = -2, NewVar='airTempLagged2')
-  
-  #############################
-  # predict daily water temp
-  
-  FullRecord$predTemp <- ifelse( FullRecord$segment == 2,
-                                 predict(finalModelS2,FullRecord),
-                         ifelse( FullRecord$segment == 3,
-                                 predict(finalModelS3,FullRecord), NA ) )
 
-  #############################
-  # get CI for daily temp prediction
-  seg2mod <- data.frame(as.matrix(FullRecord[,c('site','segment', 'dOY', 'bp2'), ]), predict(m3S2,FullRecord, interval = "confidence"))
-  seg2 <- seg2mod[seg2mod$segment == 2,]
+  # prcp
+  FullRecord <- slide(FullRecord, Var = "prcp",    GroupVar = "site", slideBy = -1, NewVar='prcpLagged1')
+  FullRecord <- slide(FullRecord, Var = "prcp",    GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
+  FullRecord <- slide(FullRecord, Var = "prcp",    GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
   
-  seg3mod <- data.frame(as.matrix(FullRecord[,c('site','segment', 'dOY', 'bp2'), ]), predict(m3S3,FullRecord, interval = "confidence"))
-  seg3 <- seg3mod[seg3mod$segment == 3,]
-
-  segNAmod <- data.frame(as.matrix(FullRecord[,c('site','segment', 'dOY', 'bp2'), ]), matrix(NA, nrow = nrow(FullRecord), ncol = 3))
-  segNA <- segNAmod[!(segNAmod$segment %in% c(2,3)),]
-  colnames(segNA) <- c('site','segment', 'dOY', 'fit', 'lwr', 'upr')
-
-  CIPreds <- rbind(seg2, seg3, segNA)
-  CIPreds <- CIPreds[order(CIPreds$site,CIPreds$dOY),] 
+  # Calculate 5-day mean of prcp:
+  # =============================
+  if('prcp5DayLS' %in% variable.names(finalModelS2) | 'prcp5DayLS' %in% variable.names(finalModelS3) ) {
+  
+    FullRecord$prcp5Day <- NA
+    
+    loopSites <- unique(FullRecord$site)
+    
+    window <- 5
+    for (i in 1:length(loopSites)){
+    
+      currSite <- which(FullRecord$site == loopSites[i])
+  
+      FullRecord$prcp5Day[currSite] <- rollapply(FullRecord$prcp[currSite], width=window, fill=NA, mean, align = 'left')
+    
+      if(i/100 == round(i/100)) {print(paste0(i/length(loopSites), '% done 5-day averaging prcp'))}
+    }
+  }
+    
+  # Log scale the daymet variables:
+  # ===============================
+  
+  # Only scale the variables that made it into the model:
+  predLogVars   <- names(FullRecord)[names(FullRecord) %in% logVariables  ]
+  predScaleVars <- names(FullRecord)[names(FullRecord) %in% scaleVariables]
+  
+  # Scale and log the same variables as the observed data:
+  logScaledPreds <- loggAndScaleDaymet(FullRecord, predLogVars, predScaleVars)
+  
+  FullRecord  <- logScaledPreds[[1]]
+  FR2 <- logScaledPreds[[2]]
+  FR3 <- logScaledPreds[[3]]
+  
+  # Predict  Summer Tmax and its CI:
+  # ================================
+  predictionStatsTile <- predictSummerTMax(FR2, FR3, predictionStatsTile)
+  
+  # Predict daily water temp
+  # ========================
+  # Note: running the 'if else' script on the full dataframe runs into memory limitations. This is the reason for the split.
+  FR2$predTemp <-predict(finalModelS2,FR2)
+  FR3$predTemp <- predict(finalModelS3,FR3)
+  
+  # Join to over-write FullRecord: (Ok because we already pulled data not in segments 2 or 3)
+  # ==============================
+  FullRecord <- rbind(FR2, FR3) 
   
   # Estimate slopes of air/water for each site:
-  #--------------------------------------------
-  # Can't do this directly in the big regressions because other daily covariates besides airTemp are included (swe, dayl, srad)
-
-  slopes <- ddply( FullRecord, .(site,segment), summarize, slope=coef(lm(predTemp ~ airTemp))[2])    
+  # ===========================================
+  predictionStatsTile <- predictSlopes(FullRecord, predictionStatsTile)
   
-  slopesMelt <- melt(slopes,id.vars=c('site','segment'))
-  slopesCast <- cast(slopesMelt,site~segment)
-  names(slopesCast) <- c('site','slopeSeg2','slopeSeg3')
-  FullRecord <- merge( x=FullRecord, y=slopes, all.x=T, by = c('site','segment') )
-  
-  predictionStatsTile$site <- predictionStatsTile$FEATUREID
-  predictionStatsTile <- merge( x=predictionStatsTile, y=slopesCast, all.x=T, by = c('site') )
-  #ggplot(slopes, aes(slope)) + geom_histogram()+facet_wrap(~segment)
-  
-  #Get the confidence interval for the slopes
-  slopesCI <- ddply( FullRecord, .(site,segment), summarize, range=confint(lm(predTemp ~ airTemp), 'airTemp', level = 0.95))
-  
-  slopesCI$slopeCI <- slopesCI$range[,2] - slopesCI$range[,1]
-
-  slopesCI <- slopesCI[,c('site', 'segment', 'slopeCI')]
-  
-  slopesMeltCI <- melt(slopesCI,id.vars=c('site','segment'))
-  slopesCastCI <- cast(slopesMeltCI,site~segment)
-  names(slopesCastCI) <- c('site','slopeSeg2CI','slopeSeg3CI')
-  
-  predictionStatsTile <- merge( x=predictionStatsTile, y=slopesCastCI, all.x=T, by = c('site') )
-
-
-  #Calculate the temperature prediction at the Summer BP:
-  #------------------------------------------------------
-  summerMax <- ddply( FullRecord, .(site), summarize, predTempAtBP2 = predTemp[which(dOY == round(bp2))] )
-  predictionStatsTile <- merge ( predictionStatsTile, summerMax, by = 'site', all.x = T, sort = F)
-  
-  ##Calculate the CI of the temperature prediction at the Summer BP:
-  ##----------------------------------------------------------------  
-  summerMaxCI <- ddply( CIPreds, .(site), summarize, predTempAtBP2CI = upr[which(dOY == round(bp2))] - lwr[which(dOY == round(bp2))] )
-  predictionStatsTile <- merge ( predictionStatsTile, summerMaxCI, by = 'site', all.x = T, sort = F)
-
-  
-  TempPreds <- predictionStatsTile[,c('FEATUREID', 'bp1', 'bp2', 'bp3', 'bp1bp3', 'slopeSeg2', 'slopeSeg2CI',  'slopeSeg3', 'slopeSeg3CI', 'predTempAtBP2', 'predTempAtBP2CI')]
+  # Create a master dataframe of all predictions:
+  # =============================================
+  TempPreds <- predictionStatsTile[,c('site', 'bp1', 'bp2', 'bp3', 'bp1bp3', 'slopeSeg2', 'slopeSeg2CI',  'slopeSeg3', 'slopeSeg3CI', 'summerMax', 'summerMaxCI')]
     
   if ( i == 1 ) {Predictions <- TempPreds}  else (Predictions <- rbind(Predictions, TempPreds))
 
-  save(FullRecord, file=paste0(dataOutDir, sourceList, '/DaymetClimateDataNHD_DaymetTile' , DaymetTiles[i], '_', Year, 'AfterR_', sourceList, '.RData'))
+  
+  
+
+  #Creates folders for graphs if they don't exist:
+  #-----------------------------------------------
+#  subGraphsDir  <- paste0(graphsDir,  sourceList)
+# subDataOutDir <- paste0(dataOutDir, sourceList)
+  
+ 
+  
+  # Save the record:
+  # ================
+
+  # Check to see if the output folder exists. Create one if it doesn't.
+  if ( i == 1){
+  predictionTileFolder <- paste0(dataOutDir, sourceList, '/modelPredictionTimeseries')
+  
+    if (!file.exists(predictionTileFolder) ){
+      dir.create(file.path(predictionTileFolder))
+      }
+  }
+
+  # Save it:
+  save(FullRecord, file=paste0(predictionTileFolder, '/predictionRecord_DaymetTile' , DaymetTiles[i], '_', Year, '.RData'))
 }
 
 ```
 
-
 ```{r Write out prediction files for ArcGIS}
+
+names(Predictions)[names(Predictions) == 'site'] <- 'FEATUREID'
+
 Predictions <- merge(Predictions, predictionStats[,c('FEATUREID', 'StreamOrder')], by = 'FEATUREID', all.x = T, sort = F)
 
 #Write out prediction files for ArcGIS:
@@ -869,493 +992,3 @@ streamOrderTrim[ streamOrderTrim$StreamOrder > 3 , c('SpringBP', 'SummerBP', 'Fa
 write.csv(streamOrderTrim, file = paste0(dataOutDir, sourceList, '/BP_HeadwatersPredictions', Year, '.csv'), row.names = F )
 write.dbf(streamOrderTrim, file = paste0(dataOutDir, sourceList, '/BP_HeadwatersPredictions', Year, '.dbf'))
 ```
-
-
-
-
-
-
-#```{r Model Metrics}
-cal_ver <- matrix(NA, nrow=num_sites,ncol=9)
-
-cal_ver[1:num_sites,1] <- sites$Latitude
-cal_ver[1:num_sites,2] <- sites$Longitude
-cal_ver[1:num_sites,3] <- sites$Days
-
-rownames(cal_ver) <- sites$Site
-colnames(cal_ver) <- as.character(c("Latitude","Longitude","Days","Nash","RMSE","mu","alpha","theta","beta"))
-
-  #Loop through to get all calibration metrics against full time series.
-
-
-
-for (i in 2:length(cur.array[1,,1])){
-
-  observed  <- et2$temp
-  predicted <- et2$pred
-  notna <- which(is.na(observed) == FALSE)
-  top1 = sum((observed[notna]-predicted[notna])^2)
-  bottom1 = sum((observed[notna]-mean(observed[notna]))^2)
-  
-  nash1 <- round((1-top1/bottom1), digits = 3)
-	RMSE1 <- round((sqrt(top1/(length(notna)))), digits = 3)
-
-}
-
-
-
-
-for (i in 2:length(cur.array[1,,1])){
-  model.parm <- parms[i-1,1:4]
-	Air.V <- ver.met[,i,1]
-	Stream.V <- ver.array[,i,1]
-	stream.est.V <- ST_MAN_CALIBRATE(model.parm,Air.V)	
-
-	Obs<-ver.array[,i,1]
-	notna <- which(is.na(Obs) == FALSE)				
-	top1 = sum((Obs[notna]-stream.est.V[notna])^2)
-	bottom1 = sum((Obs[notna]-mean(Obs[notna]))^2)
-
-	nash1 <- round((1-top1/bottom1), digits = 3)
-	RMSE1 <- round((sqrt(top1/(length(notna)))), digits = 3)
-
-	cal_ver[i-1,4] <- nash1
-	cal_ver[i-1,5] <- RMSE1
-	metrics[i-1,k,2] <- nash1
-	metrics[i-1,k+4,2] <- RMSE1
-}
-
-cal_ver[,6:9] <- (parms[,1:4])
-
-
-
-#```
-
-  
-  #Get maximum 7-day moving mean and the day of year it occurs.
-  tileSites <- unique(FullRecord$site)
-  predictionStatsTile$summerMax <- NA
-  predictionStatsTile$summerMaxDOY <- NA
-
-  #make this all just temperature at summer BP
-  window <- 7 # frame sizefor moving mean, which is centered by default
-
-  for ( j in 1:length(tileSites)){
-    
-    currSite <- which(FullRecord$site == tileSites[i])
-
-    #Need this so sites with very short records don't crash the loop.
-    if(length(currSite) >= window){currMean <-  rollapply(e$tempIndex[currSite], width=window, fill=NA, mean)} else(currMean <- NA)
-  
-    currMax <- max(currMean)
-    
-    maxDOY<- which(currMean == currMax)
-    
-    predictionStatsTile$summerMax[predictionStatsTile$site == tileSites[i]] <- currMax
-    predictionStatsTile$summerMaxDOY[predictionStatsTile$site == tileSites[i]] <- maxDOY
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-nSites <- length(siteList)
-siteYearCombos <- unique(e[,c('site','year')])
-#siteYearCombos$site  <- factor(siteYearCombos$site)
-
-e$movingMean <- NA
-e$movingSD <- NA
-
-for (i in 1:nrow(siteYearCombos)){
-
-  print(c(i,as.character(siteYearCombos$site[i]),siteYearCombos$year[i],i/nrow(siteYearCombos)))
-  
-  currSite <- which(FullRecord$site == as.character(siteYearCombos$site[i]) & e$year == siteYearCombos$year[i] )
-
-  #Need this so sites with very short records don't crash the loop.
-  if(length(currSite) >= window){currMean <-  rollapply(e$tempIndex[currSite], width=window, fill=NA, mean)} else(currMean <- NA)
-  if(length(currSite) >= window){currSD <-    rollapply(e$tempIndex[currSite], width=window, fill=NA, sd)}   else(currSD <- NA)
-  
-  e$movingMean[currSite] <- currMean
-  e$movingSD  [currSite] <- currSD
-}
-
-e$meanSDDiff <- e$movingSD - e$movingMean
-
-# just to make sure the merge doens't screw up order
-e <- e[order(e$count),]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#```{r Explore prediction issues}
-
-pred <- JoinPredictionStatsTile
-
-MissSP <- pred[which(pred$bp1 <=0 | is.na(pred$bp1)),]
-
-missing <- pred$FEATUREID[which(is.na(pred$PercentImpoundedOpen))]
-
-
-
-
-
-load("C:/KPONEIL/USGS/GIS/Covariate Stats/NENY_CovariateData_2014-02-04.RData")
-
-test <- which(is.na(UpstreamStats))
-  
-length(which(is.infinite(covariateData$PercentImpoundedOpen)))
-length(which(is.infinite(PredicitonStats$ImpoundmentsOpenSqKM)))
-covariateData$ImpoundmentsOpenSqKM
-
-
-unique(JoinFullRecord$site[which(is.na(JoinFullRecord$airTemp))])
-
-
-```
-
-
-#CHUNK 10
-
-#```{r this section goes into chunk 10}
-
-#Pick some sites here to look at. ( I think...)
-#==============================================
-ggplot(et3[et3$site %in% "USFS_2432688",],aes(airTemp,pred))+
-  geom_point(aes(color=site)) +
-  stat_smooth(method='lm')+
-  facet_wrap(~year)
-#siteIndex <- unique(et$site)
-
-ggplot(et2[et2$site %in% "MAFW_MARoar55",],aes(pred,temp))+
-  geom_point(aes(color=factor(year))) +
-  geom_abline(intercept=0,slope=1,color='red')+
-  facet_wrap(~year)
-
-ggplot(et3[et3$site %in% "USFS_2432688",],aes(pred,temp))+
-  geom_point(aes(color=factor(year))) +
-  geom_abline(intercept=0,slope=1,color='red')+
-  facet_wrap(~year)
-
-gpredDOY <- 
-ggplot(et3[et3$site %in% "MAFW_MARoar55",],aes(dOY,temp))+
-  geom_line(aes(color=factor(year))) +
-  geom_line(aes(dOY,pred)) +
-  #geom_line(aes(dOY,airTemp),color='blue') +
-  #geom_point(aes(dOY,airTemp),color='blue') +
-  #geom_line(aes(dOY,pred0),color='orange') +
-  #geom_abline(intercept=0,slope=1,color='red')+
-  scale_x_continuous('Day of the year')+
-  scale_y_continuous('Water temperature')+
-  theme_bw(base_size=20) +
-  theme(legend.position="none")+
-  facet_wrap(~year)
-
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/gpredDOY_', IndexSource, '.png',sep=''), plot=gpredDOY, dpi=dpiIn , width=8,height=5, units='in' )
-
-
-ggplot(et3[et3$site %in% "2432688",],aes(dOY,temp))+
-  geom_line(aes(color=factor(year))) +
-  geom_line(aes(dOY,airTemp)) +
-  facet_wrap(~year)
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#```{r bp raw data graphs for talk}
-dat <- et[ et$year == 2008 & et$site %in% '235' ,]
-
-#hist(siteData$springBP)
-#hist(siteData$summerBP)
-#hist(siteData$fallBP)
-
-#Histogram of breakpoints (dOY):
-#-------------------------------
-gBP <- 
-ggplot(siteData, aes(springBP))+
-  geom_histogram(fill='darkblue')+
-  geom_histogram(aes(summerBP), fill='darkred')+
-  geom_histogram(aes(fallBP), fill='darkgreen')+
-  scale_x_continuous('Day of year',lim=c(50,365))+
-  scale_y_continuous('Frequency')+
-  theme_bw(base_size=20)
-
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/gBP_', IndexSource ,'.png',sep=''), plot=gBP, dpi=dpiIn , width=8,height=5, units='in' )
-
-
-#   :
-#-------------------------------
-gMohsNoSmooth <- 
-  ggplot( dat, aes(airTemp,temp))+
-  geom_point() +
-#  geom_smooth( method = 'nls', formula = y ~ m + ((a-m)/(1+exp(g*(b-x)))), se = F, start = list(a = 40,m = 0, g=1/15, b=10), size=1.25, colour='black') +
-  theme_bw(base_size=20) +
-  scale_x_continuous(expression(paste("Air temperature (",degree, "C)", sep = "")))+ 
-  scale_y_continuous(expression(paste("Water temperature (",degree, "C)", sep = ""))) 
-
-ggsave( file=paste(basedir, 'data/temperature/fromKyle/mohsNoSmooth', IndexSource ,'.png',sep=''), plot=gMohsNoSmooth, dpi=dpiIn , width=8,height=5, units='in' )
-
-gMohs <- 
-  ggplot( dat, aes(airTemp,temp))+
-  geom_point() +
-  geom_smooth( method = 'nls', formula = y ~ m + ((a-m)/(1+exp(g*(b-x)))), se = F, start = list(a = 40,m = 0, g=1/15, b=10), size=1.25, colour='black') +
-  theme_bw(base_size=20) +
-  scale_x_continuous(expression(paste("Air temperature (",degree, "C)", sep = "")))+ 
-  scale_y_continuous(expression(paste("Water temperature (",degree, "C)", sep = ""))) 
-
-ggsave( file=paste(basedir, 'D:/GitHub/data/temperature/fromKyle/mohs.png', sep = ""), plot=gMohs, dpi=dpiIn , width=8,height=5, units='in' )
-
-gDOY <- 
-  ggplot( dat,   aes(dOY,temp))+
-  geom_point() +
-  geom_line()+
-  geom_point(aes(dOY,airTemp), color='red')+
-  geom_line(aes(dOY,airTemp), color='red')+
-  theme_bw(base_size=20) +
-  theme(legend.position="none")+
-  scale_x_continuous('Day of year')+ 
-  scale_y_continuous(expression(paste("Temperature (",degree, "C)", sep = "")))
-
-ggsave( file='D:/GitHub/data/temperature/fromKyle/gDOY.png', plot=gDOY, dpi=dpiIn , width=8,height=5, units='in' )
-
-
-gSeg <- 
-  ggplot( et[ et$year == 2008 & et$site %in% '235' &
-              et$segment %in% 2:3  ,], aes(airTemp,temp,color=factor(segment)))+
-  geom_point() +
-  geom_smooth( method = 'lm', size=1.2,se=F) +
-    scale_color_manual(values = c("1" = "blue","2" = "red","3" = "darkgreen"))+
-  geom_point(data=et[ et$year == 2008 & et$site %in% '235' & et$segment %in% 1  ,], aes(airTemp,temp))+
-  theme_bw(base_size=20) +
-  theme(legend.position="none")+
-  scale_x_continuous(expression(paste("Air temperature (",degree, "C)", sep = "")))+ 
-  scale_y_continuous(expression(paste("Water temperature (",degree, "C)", sep = "")))
-
-ggsave( file='D:/GitHub/data/temperature/fromKyle/gSeg.png', plot=gSeg, dpi=dpiIn , width=8,height=5, units='in' )
-
-gSeg1to1 <- 
-  ggplot( et[ et$year == 2008 & et$site %in% '235' &
-              et$segment %in% 2:3  ,], aes(airTemp,temp,color=factor(segment)))+
-  geom_point() +
-  geom_abline(intercept=0,slope=1,size=1.25)+
-  geom_smooth( method = 'lm', size=1.2,se=F) +
-    scale_color_manual(values = c("1" = "blue","2" = "red","3" = "darkgreen"))+
-  geom_point(data=et[ et$year == 2008 & et$site %in% '235' & et$segment %in% 1  ,], aes(airTemp,temp))+
-  theme_bw(base_size=20) +
-  theme(legend.position="none")+
-  scale_x_continuous(expression(paste("Air temperature (",degree, "C)", sep = "")))+ 
-  scale_y_continuous(expression(paste("Water temperature (",degree, "C)", sep = "")))
-
-ggsave( file='D:/GitHub/data/temperature/fromKyle/gSeg1to1.png', plot=gSeg1to1, dpi=dpiIn , width=8,height=5, units='in' )
-
-gSeg1to1b <- 
-  ggplot( et[ et$year == 2011 & et$site %in% '2439192' &
-                et$segment %in% 2:3  ,], aes(airTemp,temp,color=factor(segment)))+
-  geom_point() +
-  geom_abline(intercept=0,slope=1,size=1.25)+
-  geom_smooth( method = 'lm', size=1.2,se=F) +
-  scale_color_manual(values = c("1" = "blue","2" = "red","3" = "darkgreen"))+
-  geom_point(data=et[ et$year == 2011 & et$site %in% '2439192' & et$segment %in% 1  ,], aes(airTemp,temp))+
-  theme_bw(base_size=20) +
-  theme(legend.position="none")+
-  scale_x_continuous(expression(paste("Air temperature (",degree, "C)", sep = "")))+ 
-  scale_y_continuous(expression(paste("Water temperature (",degree, "C)", sep = "")))
-
-ggsave( file='D:/GitHub/data/temperature/fromKyle/gSeg1to1b.png', plot=gSeg1to1b, dpi=dpiIn , width=8,height=5, units='in' )
-
-# 
-gBP2 <- 
-  ggplot( dat, aes((dOY),(movingMean))) +
-  theme_bw(base_size=20) +
-  geom_point() +
-  geom_hline( aes(yintercept=quantileLo), colour='black') +
-  geom_hline( aes(yintercept=quantileHi), colour='black') +
-  geom_vline( aes(xintercept=as.numeric(springBP)),size=1.25) +
-  geom_vline( aes(xintercept=as.numeric(fallBP)),size=1.25) +
-  geom_vline( aes(xintercept=as.numeric(summerBP)),size=1.25) +
-  scale_x_continuous('Day of year')  +
-  scale_y_continuous('Temperature index', lim=c(-10,10))  
-
-ggsave( file='D:/GitHub/data/temperature/fromKyle/gBP2.png', plot=gBP2, dpi=dpiIn , width=8,height=5, units='in',scale=2 )
-
-gBP2Color <- 
-  ggplot( dat, aes((dOY),(movingMean),color=factor(segment))) +
-  theme_bw(base_size=30) +
-  geom_point() +
-  geom_hline( aes(yintercept=quantileLo), colour='black') +
-  geom_hline( aes(yintercept=quantileHi), colour='black') +
-  geom_vline( aes(xintercept=as.numeric(springBP)),size=1.25) +
-  geom_vline( aes(xintercept=as.numeric(fallBP)),size=1.25) +
-  geom_vline( aes(xintercept=as.numeric(summerBP)),size=1.25) +
-    scale_color_manual(values = c("1" = "blue","2" = "red","3" = "darkgreen"))+
-  theme(legend.position="none")+
-  scale_x_continuous('Day of year')  +
-  scale_y_continuous('Temperature index', lim=c(-10,10))  
-
-ggsave( file='D:/GitHub/data/temperature/fromKyle/gBP2Color.png', plot=gBP2Color, dpi=dpiIn , width=8,height=5, units='in',scale=2 )
-
-
-gBP2NoBP <- 
-  ggplot( dat, aes((dOY),(movingMean))) +
-  geom_point() +
-  geom_hline( aes(yintercept=quantileLo), colour='black') +
-  geom_hline( aes(yintercept=quantileHi), colour='black') +
-#  geom_vline( aes(xintercept=as.numeric(springBP)),size=1.25) +
-#  geom_vline( aes(xintercept=as.numeric(fallBP)),size=1.25) +
-#  geom_vline( aes(xintercept=as.numeric(summerBP)),size=1.25) +
-  scale_x_continuous('Day of year')  +
-  scale_y_continuous('Temperature index', lim=c(-10,10)) +
-  theme_bw(base_size=30) 
-
-ggsave( file='D:/GitHub/data/temperature/fromKyle/gBP2NoBP.png', plot=gBP2NoBP, dpi=dpiIn , width=8,height=5, units='in',scale=2 )
-
-
-```
-
-
-
-
-
-
-
-
-
-___________________________________________________________________________________________________________________________________________________
-
-                                                          BELOW HERE CAN BE RUN IN ARC
-____________________________________________________________________________________________________________________________________________________
-
-
-
-
-
-
-
-
-
-#```{r map data}
-load(file=file=paste0(basedir, 'data/temperature/fromKyle/UpstreamStatsCTAfterR.RData'))
-
-map <- qmap(c(lon=-72.8, lat=41.5), source="google", zoom=9)
-
-
-# left/bottom/right/top
-#map <- qmap(c(-73.4, 40.6,-71.5,41.6), source="google")
-
-# slope segment 2
-gSlopeSeg2 <- 
-map +
-    geom_point(aes(x = Longitude, y = Latitude, colour = slopeSeg2), data = UpstreamStatsCT[UpstreamStatsCT$slopeSeg2<1.1,],size=1.8) +
-  #scale_colour_gradient2(low="red", high="blue")
-  scale_colour_gradient(low = "blue", high = "red",limits=c(0.55, 1.)) 
-
-ggsave( file=paste('D:/GitHub/data/temperature/fromKyle/gSlopeSeg2.png',sep=''), plot=gSlopeSeg2, dpi=dpiIn , width=6,height=5, units='in' )
-
-#slope segment 3
-gSlopeSeg3 <- 
-map +
-    geom_point(aes(x = Longitude, y = Latitude, colour = slopeSeg3), data = UpstreamStatsCT[UpstreamStatsCT$slopeSeg3<1.1,]) +
-  scale_colour_gradient(low="red", high="blue",limits=c(0.55, 1.1))
-
-ggsave( file=paste('D:/GitHub/data/temperature/fromKyle/gSlopeSeg3.png',sep=''), plot=gSlopeSeg3, dpi=dpiIn , width=6,height=5, units='in' )
-
-
-# breakpoints
-bp <- UpstreamStatsCT[UpstreamStatsCT$bp3<365&UpstreamStatsCT$bp1<365,]
-
-gPredBP <- 
-ggplot(bp, aes(bp1))+
-  geom_histogram(fill='darkblue')+
-  geom_histogram(aes(bp2), fill='darkred')+
-  geom_histogram(aes(bp3), fill='darkgreen')+
-  scale_x_continuous('Day of year')+#,lim=c(50,365))+
-  scale_y_continuous('Frequency')+
-  theme_bw(base_size=20)
-
-ggsave( file=paste('D:/GitHub/data/temperature/fromKyle/gPredBP.png',sep=''), plot=gPredBP, dpi=dpiIn , width=8,height=5, units='in' )
-
-#bp 1
-gMapBP1 <- 
-map +
-    geom_point(aes(x = Longitude, y = Latitude, colour = bp1), data = bp[bp$bp1<95,]) +
-  scale_colour_gradient(low="red", high="blue")
-
-ggsave( file=paste('D:/GitHub/data/temperature/fromKyle/gMapBP1.png',sep=''), plot=gMapBP1, dpi=dpiIn , width=6,height=5, units='in' )
-
-#bp 2
-gMapBP2 <- 
-map +
-    geom_point(aes(x = Longitude, y = Latitude, colour = bp2), data = bp) +
-  scale_colour_gradient(low="red", high="blue")
-
-ggsave( file=paste('D:/GitHub/data/temperature/fromKyle/gMapBP2.png',sep=''), plot=gMapBP2, dpi=dpiIn , width=6,height=5, units='in' )
-
-#bp 3
-gMapBP3 <- 
-map +
-    geom_point(aes(x = Longitude, y = Latitude, colour = bp3), data = bp) +
-  scale_colour_gradient(low="red", high="blue")
-
-ggsave( file=paste('D:/GitHub/data/temperature/fromKyle/gMapBP3.png',sep=''), plot=gMapBP3, dpi=dpiIn , width=6,height=5, units='in' )
-
-#bp1 bp3
-gMapBP13 <- 
-map +
-    geom_point(aes(x = Longitude, y = Latitude, colour = bp1bp3), data = bp[bp$bp1<95,]) +
-  scale_colour_gradient(low="red", high="blue")
-  #theme(legend.position="none")
-
-ggsave( file=paste('D:/GitHub/data/temperature/fromKyle/gMapBP13.png',sep=''), plot=gMapBP13, dpi=dpiIn , width=6,height=5, units='in' )
-
-
-
-```
-
