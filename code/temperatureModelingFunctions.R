@@ -20,3 +20,12 @@ riverLabeller2 <- function(var, value){
   return(value)
 }
 
+# Function that returns Root Mean Squared Error
+rmse <- function(error) {
+  sqrt(mean(error^2))
+}
+
+# Function that returns Mean Absolute Error
+mae <- function(error) {
+  mean(abs(error))
+}
