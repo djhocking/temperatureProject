@@ -348,6 +348,21 @@ vis.gam(bam6,theta=30,ticktype="detailed", view=c("airTemp", "site"))
 vis.gam(bam6,theta=-45,ticktype="detailed",se=2,  view=c("airTemp", "site"))
 vis.gam(bam6,plot.type="contour",  view=c("airTemp", "site"))
 
+
+# Smooth Poly Change Point
+source('LMERanalysisPoly.r')
+# Model fitting:
+# Quite sensitive to starting values - try a few...
+modelD <- nlmer(y ~ SSRCP(ttime,a,b,d,tau) ~ (a|id)+(b+d|id)+(tau|id),data=data,
+                start = c(a = 24, b = 0, d=-1,tau=-6),
+                control=list(msVerbose=1,maxIter=200))
+
+modelD <- nlmer(Reaction ~ SSRCP(Days,a,b,d,tau) ~ (a|Subject)+(b+d|Subject)+(tau|Subject),data=sleepstudy, start = c(a = 2, b = 2, d=1,tau=4), control=list(msVerbose=1,maxIter=200))
+
+modelD <- nlmer(temp ~ SSRCP(dOY,a,b,d,tau) ~ (a|site)+(b+d|site)+(tau|site),data=etS, start = c(a = 0.5, b = 0.5, d=1,tau=4), control=list(msVerbose=1,maxIter=200))
+
+
+
 # gamm4
 library(gamm4)
 ?gamm4
