@@ -1,3 +1,5 @@
+graphs/*
+!graphs/shared/
 maps/
 UMassWork/
 DaymetClimateData/
@@ -6,7 +8,6 @@ modelPredictionTimeseries/
 .Rhistory
 .Rapp.history
 .RData
-*.png
 *.jpg
 *.jpeg
 *.pdf
@@ -16,4 +17,7 @@ modelPredictionTimeseries/
 nlme.RData
 gamm.RData
 bam.RData
+*.Rhistory
+.Rapp.history
+dataIn/nlme.RData
 gamm2.RData
