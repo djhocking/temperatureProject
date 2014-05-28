@@ -355,6 +355,7 @@ vis.gam(bam6,theta=-45,ticktype="detailed",se=2,  view=c("airTemp", "site"))
 vis.gam(bam6,plot.type="contour",  view=c("airTemp", "site"))
 
 
+
 # Add additional covariates
 library(parallel)
 
