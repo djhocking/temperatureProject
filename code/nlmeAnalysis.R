@@ -1,5 +1,7 @@
 rm(list=ls())
 
+install.packages(c('DataCombine', 'ggplot2', 'relaimpo', 'plyr', 'reshape', 'foreign', 'nlme'))
+
 library(DataCombine) # for the slide function
 library(ggplot2)
 library(relaimpo)
@@ -12,10 +14,11 @@ library(maptools)
 #library(gridExtra)
 library(nlme)
 
-setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
-
+baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
 baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+
+setwd(baseDir)
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -61,6 +64,8 @@ et2 <- na.omit(et2)
 etS <- cbind(et2[ ,c(1:10)],
                       apply(X = et2[ ,11:dim(et2)[2]], MARGIN=2,
                             FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
+
+etS$month <- as.factor(format(as.Date(et2$date), format = "%m"))
 
 #ggplot(data = et2, aes(date, temp)) + geom_point(size = 1) + facet_wrap(~site)
 
@@ -166,6 +171,15 @@ plot(ACF(lmeFull, maxLag = 400))
 plot(ACF(lmeFullAR1, maxLag = 400))
 plot(ACF(lmeFullAR2, maxLag = 400))
 
+<<<<<<< HEAD
+# Add month as a random effect
+
+system.time(lmeMonth <- lme(temp ~ airTemp+airTempLagged1+airTempLagged2+Latitude+Longitude+ prcp+Forest+ Agriculture+BasinElevationM+ ReachSlopePCNT+ TotDASqKM+CONUSWetland+SurficialCoarseC+ImpoundmentsOpenSqKM+dayl + srad + swe, random = list(site = ~ airTemp + airTempLagged1 + airTempLagged2, month = ~airTemp + airTempLagged1 + airTempLagged2), data = etS, na.action = "na.omit", control = lmeControl(msMaxIter =90, maxIter=200))) 
+summary(lmeMonth) 
+
+system.time(lmeMonthAR1 <- update(lmeMonth, correlation = corAR1() )) # 14.8 hours
+summary(lmeFullAR1)
+=======
 AIC(lmeFull, lmeFullAR1, lmeFullAR2)
 
 ### Model has serious autocorrelation issues - try simple model but including date
@@ -177,6 +191,7 @@ summary(lmeSCDay)
 plot(ACF(lmeSCDay, maxLag = 400))
 
 system.time(lmeSCDayAR1 <- update(lmeSCDay, correlation = corAR1() ))
+>>>>>>> a56055c9e53f695726e5dd593396793d880d7331
 
 # consider adding season and/or 10 day average (or 10-day average min) temperature and interaction to account for winter.
 

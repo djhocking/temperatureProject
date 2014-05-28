@@ -12,8 +12,7 @@ library(maptools)
 #library(gridExtra)
 library(nlme)
 
-setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
-
+baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
 baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
 
@@ -21,10 +20,12 @@ dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
 graphsDir <- paste0(baseDir, 'graphs/')
 
+setwd(baseDir)
+
 source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
 
 #load("dataOut/etWB.RData")
-load(paste0(dataInDir, 'nlme.RData'))
+load(paste0(dataInDir, 'gamm.RData'))
 
 et <- et[order(et$count),] # just to make sure et is ordered for the slide function
 
@@ -185,10 +186,11 @@ system.time(gamm4Full <- gamm4(temp ~ airTemp + airTempLagged1+airTempLagged2+ p
 #               convergence code 1 from bobyqa: bobyqa -- maximum number of function evaluations exceeded
 
 
-system.time(gamm4Full <- gamm4(temp ~ airTemp + airTempLagged1+airTempLagged2+ prcp + prcpLagged1 + prcpLagged2 + s(dOY) + prcp*airTemp, random = ~(1| site), data = etS))
+system.time(gamm4Full <- gamm4(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + Forest + Agriculture+BasinElevationM + ReachSlopePCNT+CONUSWetland + SurficialCoarseC + prcp*airTemp + s(jDayC, k = 50), random = ~(1| site), data = etS, method = 'qrLINPACK'))
 
 
-summary(gamm4Full)
+summary(gamm4Full$gam)
+
 plot(fitted(gamm4Full), resid(gamm4Full))
 
 vis.gam(gamm4Full,theta=30,ticktype="detailed")
