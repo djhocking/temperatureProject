@@ -11,8 +11,6 @@ library(foreign)
 library(maptools)
 #library(gridExtra)
 library(nlme)
-library(mgcv)
-library(parallel)
 
 baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
@@ -66,7 +64,7 @@ mae <- function(error) {
 et$day <- as.numeric(et$date)
 
 if(WB) {
-  et2 <- et[ , c("siteYear", "year", "site", "date", "dOY", "day", "season", "temp", "airTemp", "prcp", "prcpLagged1", "prcpLagged2", "srad", "dayl", "swe", "airTempLagged1", "airTempLagged2")]
+  et2 <- et[ , c("siteYear", "year", "site", "date", "dOY", "day", "season", "temp", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "srad", "dayl", "swe")]
   
   et2$temp[which(et2$temp < 0 & et2$temp > -1)] <- 0
   et2$temp[which(et2$temp <= -1)] <- NA
@@ -75,12 +73,12 @@ if(WB) {
   # Scale if necessary or desired
   # Zuur p. 485
   # log.dams isn't standardized because so far from normal
-  etS <- cbind(et2[ ,c(1:8)],
-               apply(X = et2[ ,9:dim(et2)[2]], MARGIN=2,
+  etS <- cbind(et2[ ,c(1:11)],
+               apply(X = et2[ ,12:dim(et2)[2]], MARGIN=2,
                      FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
   
 } else {
-  et2 <- et[ , c("siteYear", "year", "site", "HUC_4", "HUC_8", "HUC_12", "TNC_DamCount", "date", "dOY", "day", "temp", "airTemp", "prcp", "prcpLagged1", "prcpLagged2", "srad", "dayl", "swe", "airTempLagged1", "airTempLagged2", "Latitude", "Longitude", "Forest", "Agriculture", "Herbacious", "Developed", "Wetland", "Water", "Impervious", "BasinSlopeDEG", "HydrologicGroupAB", "SurficialCoarseC", "TotDASqKM", "BasinElevationM",  "CONUSWetland", "ImpoundmentsOpenSqKM", "ReachSlopePCNT")] # flow, "season",
+  et2 <- et[ , c("siteYear", "year", "site", "HUC_4", "HUC_8", "HUC_12", "TNC_DamCount", "date", "dOY", "day", "temp", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "srad", "dayl", "swe", "Latitude", "Longitude", "Forest", "Agriculture", "Herbacious", "Developed", "Wetland", "Water", "Impervious", "BasinSlopeDEG", "HydrologicGroupAB", "SurficialCoarseC", "TotDASqKM", "BasinElevationM",  "CONUSWetland", "ImpoundmentsOpenSqKM", "ReachSlopePCNT")] # flow, "season",
   
   et2$temp[which(et2$temp < 0 & et2$temp > -1)] <- 0
   et2$temp[which(et2$temp <= -1)] <- NA
@@ -107,29 +105,25 @@ etS$scDOY <- sin(2*pi/360*etS$dOY) + cos(2*pi/360*etS$dOY)
 
 etS$month <- format(etS$date, '%m')
 
-etS$fyear <- as.factor(etS$year)
-etS$fsite <- as.factor(etS$site)
-
-rm(et)
-rm(et2)
-
 #etS$season <- NA
+
+
 
 ## Need better way to create season
 #for(i in 1:length(etS$month)){
-if(etS$month[i] == '12') { etS$season[i]  <- 1 }
-if(etS$month[i]  == '01') { etS$season[i] <- 1 }
-if(etS$month[i]  == '02') { etS$season[i] <- 1 }
-if(etS$month[i] == '03') { etS$season[i] <- 2 }
-if(etS$month[i] == '04') { etS$season[i] <- 2 }
-if(etS$month[i] == '05') { etS$season[i] <- 2 }
-if(etS$month[i] == '06') { etS$season[i] <- 3 }
-if(etS$month[i] == '07') { etS$season[i] <- 3 }
-if(etS$month[i] == '08') { etS$season[i] <- 3 }
-if(etS$month[i] == '09') { etS$season[i] <- 4 }
-if(etS$month[i] == '10') { etS$season[i] <- 4 }
-if(etS$month[i] == '11') { etS$season[i] <- 4 }
-}
+# if(etS$month[i] == '12') { etS$season[i]  <- 1 }
+# if(etS$month[i]  == '01') { etS$season[i] <- 1 }
+# if(etS$month[i]  == '02') { etS$season[i] <- 1 }
+# if(etS$month[i] == '03') { etS$season[i] <- 2 }
+# if(etS$month[i] == '04') { etS$season[i] <- 2 }
+# if(etS$month[i] == '05') { etS$season[i] <- 2 }
+# if(etS$month[i] == '06') { etS$season[i] <- 3 }
+# if(etS$month[i] == '07') { etS$season[i] <- 3 }
+# if(etS$month[i] == '08') { etS$season[i] <- 3 }
+# if(etS$month[i] == '09') { etS$season[i] <- 4 }
+# if(etS$month[i] == '10') { etS$season[i] <- 4 }
+# if(etS$month[i] == '11') { etS$season[i] <- 4 }
+# }
 #etS$fSeason <- as.factor(etS$season)
 
 #ggplot(data = et2, aes(date, temp)) + geom_point(size = 1) + facet_wrap(~site)
@@ -202,6 +196,191 @@ par(mfrow = c(1,1))
 #library(gamm4) - better if don't account for correlation structure
 
 # bam - for large data
+
+
+
+# Mohseni et al 1998
+
+# JAGS
+
+plot(et2$airTemp, et2$temp)
+
+sink("Mohseni.txt")
+cat("
+  model{
+    # Linear Effect Priors
+   # B.air ~ dnorm(0, 0.01)
+   # B.air1 ~ dnorm(0, 0.01)
+  #  B.air2 ~ dnorm(0, 0.01)
+    sigma ~ dunif(0, 10)
+    tau <- 1/(sigma*sigma)
+    b0.g ~ dunif(-3, 3)
+    b.forest ~ dnorm(0, 0.01)
+    
+    # Nonlinear Effect Priors
+     alpha ~ dunif(10, 80)
+    mu ~ dunif(0, 5)
+    #gam ~ dunif(0.01, 0.99) # make this site specific
+    #beta ~ dunif(10, 40) # could add covariates to this
+beta ~ dnorm(alpha/2, 0.01)T(5.1, 50)    
+
+    # Hyperpriors for Random Effects
+    #sigma.site ~ dunif(0, 5)
+    #tau.site <- 1 / sigma.site * sigma.site
+    tau.site ~ dgamma(0.01, 0.01)    
+    sigma.site <- pow(1/tau.site, 0.5) # sqrt of 1/tau
+
+    for(i in 1:n.sites) {
+      b.site[i] ~ dnorm(0, tau.site)
+    }
+
+    # Autocorrelation structure
+    
+    for(i in 1:n.obs) {
+      # Linear Model
+      t.eff[i] <- airTemp[i]# + B.air1*airTempLagged1[i] + B.air2*airTempLagged2[i]
+      lgam[i] <- b0.g + b.site[site[i]] + b.forest*forest[i] # logit link
+
+ gam[i] <- 1 / (1 + exp(-lgam.lim[i]))    
+    lgam.lim[i] <- min(999, max(-999, lgam[i])) # Help stabilize the logit
+      
+      # Nonlinear Mohseni et al. 1998 model
+      stream.mu[i] <- mu + (alpha - mu) / (1 + exp(gam[i]*(beta - t.eff[i]))) # make gam random by site
+
+
+ temp[i] ~ dnorm(stream.mu[i], tau)T(0, 80)
+    }
+  }
+  ", fill = TRUE)
+sink()
+
+n.obs <- dim(etS)[1]
+n.sites <- length(unique(etS$site))
+
+inits1 <- function() {
+  list(sigma = runif(1, 1, 2),
+       alpha = rnorm(1, 35, 1),
+       beta = 15,
+       mu = runif(1, 0, 0.01))
+       #gam = runif(1, 0.1, 0.5))
+}
+
+params1 <- c(#"B.air",
+  #          "B.air1",
+   #         "B.air2",
+            "sigma",
+            "alpha",
+            "beta",
+            "mu",
+            #"gam",
+            "sigma.site",
+            "b.forest",
+            "b0.g")
+            #"stream.mu")
+
+data1 <- list(temp = etS$temp,
+              airTemp = etS$airTemp,
+    #          airTempLagged1 = etS$airTempLagged1,
+     #         airTempLagged2 = etS$airTempLagged2,
+              site = as.factor(etS$site),
+              forest = etS$Forest,
+              n.obs = n.obs,
+              n.sites = n.sites)
+
+
+
+n.burn = 10000
+n.it = 3000
+n.thin = 6
+
+library(parallel)
+library(rjags)
+
+CL <- makeCluster(3)
+clusterExport(cl=CL, list("data1", "inits1", "params1", "n.obs", "n.sites", "n.burn", "n.it", "n.thin"), envir = environment())
+clusterSetRNGStream(cl=CL, iseed = 2342)
+
+out <- clusterEvalQ(CL, {
+  library(rjags)
+   load.module('glm')
+  jm <- jags.model("Mohseni.txt", data1, inits1, n.adapt=n.burn, n.chains=1)
+  fm <- coda.samples(jm, params1, n.iter = n.it, thin = n.thin)
+  return(as.mcmc(fm))
+})
+
+out32 <- mcmc.list(out)
+stopCluster(CL)
+
+rm(out)
+
+pdf(file="C:/Users/dhocking/Dropbox/out32.pdf", width=10, height=10)
+plot(out32[ , c("mu", "b0.g", "b.forest", "beta", "alpha", "sigma", "sigma.site")])
+dev.off()
+summary(out3[ , c("mu", "b0.a", "beta", "gam", "sigma")])
+
+library(ggmcmc)
+#ggmcmc(ggs(out3[ , c("B.air", "B.air1", "B.air2", "gam", "alpha", "beta", "sigma")]))
+
+ss <- summary(out3[ , -c(1:5)])
+streamTmeans <- ss$statistics[ , "Mean"]
+
+Coefs <- as.list(summary(out3[ , c(1:6)])$statistics[ , "Mean"])
+names(Coefs)
+
+si <- Coefs$mu + (Coefs$alpha - Coefs$mu) / (1 + exp(Coefs$b0.g*(Coefs$beta - etS$temp)))
+#si2 <- sapply(si, FUN = rnorm, sd=Coefs$sigma, simplify = TRUE)
+lsi.mu <- log(si)
+err <- NA
+for(i in 1:length(si)) { err[i] <- rnorm(1, lsi.mu[i], Coefs$sigma)}
+si2 <- exp(lsi)
+
+plot(etS$temp, si2)
+abline(0, 1, col = 'red')
+#m1 <- apply(out3[ , "stream.mu"])
+Resids <- etS$temp - si
+rmse(Resids)
+
+plot(etS$temp, streamTmeans)
+abline(0, 1, col = 'red')
+#m1 <- apply(out3[ , "stream.mu"])
+Resids <- etS$temp - streamTmeans
+rmse(Resids)
+
+
+
+
+Tstream <- matrix(NA, length(etS$temp), 1)
+for(i in 1:length(etS$temp)){
+  Tstream[i] <- apply(as.matrix(out3[ , c(paste("stream.mu[", i, "]", sep =""))]), 2, FUN = quantile, probs = c(0.5))
+}
+
+plot(etS$temp, Tstream)
+abline(0, 1, col = 'red')
+
+rmse((etS$temp - Tstream))
+
+txt1 <- "done"
+write.table(txt1, file = "C:/Users/dhocking/Dropbox/done.txt")
+
+library("nlme")
+
+mo1 <- nlme(temp ~ mu + (alpha - mu) / (1 + exp(gam*(beta - ))))
+fm <-
+  nlme
+(circumference ~phi1/(1+
+                        exp
+                      (-(age-phi2)/phi3)),
+ fixed=phi1+phi2+phi3 ~1, random=phi1 ~1|Tree,
+ data=Orange, start=
+   c
+ (phi1=200,phi2=800,phi3=400))
+
+
+
+
+
+
+# GAMM
 
 library(mgcv)
 
@@ -318,6 +497,8 @@ acf(resid(bam5), lag = 100000) # still a big autocorrelation problem
 
 rmse(resid(bam5)) # 0.753
 
+etS$fyear <- as.factor(etS$year)
+etS$fsite <- as.factor(etS$site)
 # use dOY and year instead of jDayC
 system.time(bam6 <- bam(temp ~ airTemp + airTempLagged1+airTempLagged2+ prcp + prcpLagged1 + prcpLagged2 +  airTemp*prcp + s(dOY) + s(fsite, airTemp, bs = 're') + s(year), data = etS))
 summary(bam6) # r2 = 97.6 fSeason + airTemp*fSeason + s(dOY, by = fsite)
@@ -353,81 +534,6 @@ vis.gam(bam6,plot.type="contour",  view=c("prcp", "dOY"))
 vis.gam(bam6,theta=30,ticktype="detailed", view=c("airTemp", "site"))
 vis.gam(bam6,theta=-45,ticktype="detailed",se=2,  view=c("airTemp", "site"))
 vis.gam(bam6,plot.type="contour",  view=c("airTemp", "site"))
-
-
-# Add additional covariates
-library(parallel)
-
-nc <- 6 # number of cores to use
-cl <- makeCluster(nc)
-system.time(bam7 <- bam(temp ~ airTemp + airTempLagged1+airTempLagged2+ prcp + prcpLagged1 + prcpLagged2 + Latitude + Longitude + Forest + Agriculture + BasinElevationM + ReachSlopePCNT + CONUSWetland + SurficialCoarseC +  airTemp*prcp + s(dOY, bs = 'cr') + s(fsite, airTemp, bs = 're') + s(fyear, bs = 're'), data = etS, gc.level = 1, samfrac = 0.1, cluster = cl))
-
-# fv <- predict(bam7, cluster = cl)
-stopCluster(cl)
-
-summary(bam7)
-acf(resid(bam7), lag = 1000)
-plot(etS$temp, fitted(bam7))
-abline(0,1, col = 'red')
-plot(etS$date, resid(bam7))
-
-# Add additional autocorrelation
-library(parallel)
-
-library(plyr)
-etS <- arrange(etS, site, date)
-
-nc <- 8 # number of cores to use
-cl <- makeCluster(nc)
-system.time(bam8 <- bam(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + Latitude + Longitude + Forest + Agriculture + BasinElevationM + ReachSlopePCNT + CONUSWetland + SurficialCoarseC +  airTemp*prcp + s(dOY, bs = 'cr') + s(fsite, airTemp, bs = 're') + s(fyear, bs = 're'), rho = 0.999, data = etS, gc.level = 1, samfrac = 0.1, cluster = cl)) # , by = fsite, need to add AR1 values to indicate autocorrelated within site?
-
-# fv <- predict(bam7, cluster = cl)
-stopCluster(cl)
-
-summary(bam8)
-acf(resid(bam8), lag = 1000)
-plot(etS$temp, fitted(bam7))
-abline(0,1, col = 'red')
-plot(etS$date, resid(bam7))
-
-# Add site structure to autocorrelation
-library(parallel)
-
-library(plyr)
-etS <- arrange(etS, site, date)
-
-# This should probably be done by date within siteYear in case there are breaks within a siteYear or just by date within site
-etS$ar1TF <- NA
-mode(etS$ar1TF) <- 'logical'
-etS$ar1TF[1] <- TRUE
-for(i in 2:length(etS$ar1TF)) {
-  if(etS$siteYear[i] == etS$siteYear[i-1]) {
-    etS$ar1TF[i] <- FALSE
-  } else {
-    etS$ar1TF[i] <- TRUE
-  }
-}
-
-siteYear <- etS$siteYear
-ar1TF <- logical(length(siteYear))
-ar1TF[-1] <- (siteYear[-1] != siteYear[-length(siteYear)])
-ar1TF[1] <- NA
-
-etS$ar1TF <- ar1TF
-
-
-nc <- 8 # number of cores to use
-cl <- makeCluster(nc)
-system.time(bam8 <- bam(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + Latitude + Longitude + Forest + Agriculture + BasinElevationM + ReachSlopePCNT + CONUSWetland + SurficialCoarseC +  airTemp*prcp + s(dOY, bs = 'cr') + s(fsite, airTemp, bs = 're') + s(fyear, bs = 're'), rho = 0.9, AR.start = etS$ar1TF, data = etS, gc.level = 1, samfrac = 0.1, cluster = cl)) # , by = fsite, need to add AR1 values to indicate autocorrelated within site?
-
-# fv <- predict(bam7, cluster = cl)
-stopCluster(cl)
-
-summary(bam8)
-acf(resid(bam8), lag = 1000)
-plot(etS$temp, fitted(bam7))
-abline(0,1, col = 'red')
-plot(etS$date, resid(bam7))
 
 # gamm4
 library(gamm4)
