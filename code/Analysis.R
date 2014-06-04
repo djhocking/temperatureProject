@@ -13,9 +13,11 @@ library(maptools)
 library(nlme)
 
 setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
+setwd('C:/Users/dhocking/Documents/temperatureProject/')
 
 baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
 baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
