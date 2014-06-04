@@ -23,42 +23,14 @@ graphsDir <- paste0(baseDir, 'graphs/')
 
 source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
 
-WB <- T
+WB <- F
 
 if(WB) {
   load("dataOut/etWB.RData")
 } else {
   load(paste0(dataOutDir, 'et.RData'))
-  et$date <- et$date.x
+  #et$date <- et$date.x
 }
-
-et <- et[order(et$count),] # just to make sure et is ordered for the slide function
-
-et <- slide(et, Var = "airTemp", GroupVar = "site", slideBy = -1, NewVar='airTempLagged1')
-et <- slide(et, Var = "airTemp", GroupVar = "site", slideBy = -2, NewVar='airTempLagged2')
-
-et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -1, NewVar='prcpLagged1')
-et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
-
-# Log scale swe before splitting into segments:
-et$sweL <- log(et$swe + 0.001)
-
-# Scale daymet vaiables in segment 2:
-et$daylS <- (et$dayl - mean(et$dayl,na.rm=T)) / sd(et$dayl, na.rm=T)
-et$sradS <- (et$srad - mean(et$srad,na.rm=T)) / sd(et$srad, na.rm=T)
-et$sweLS <- (et$sweL - mean(et$sweL,na.rm=T)) / sd(et$sweL, na.rm=T)
-
-
-# Function that returns Root Mean Squared Error
-rmse <- function(error) {
-  sqrt(mean(error^2))
-}
-
-# Function that returns Mean Absolute Error
-mae <- function(error) {
-  mean(abs(error))
-}
-
 
 et$day <- as.numeric(et$date)
 
@@ -191,13 +163,13 @@ par(mfrow = c(1,1))
 #                 dayl + srad + swe +
 #                 sin(2*pi/360*dOY) + cos(2*pi/360*dOY), random = list(site = ~ airTemp + airTempLagged1 + airTempLagged2 + Forest, year = ~sin(2*pi/360*dOY) + cos(2*pi/360*dOY)), data = etS, na.action = "na.omit")) # |year/site ??? TotDASqKM+ ImpoundmentsOpenSqKM+ 
 
-
+etS1 <- etS[which(et2$dOY >= mean(et$meanSpringBP, na.rm=T) & et2$dOY <= mean(et$meanFallBP)), ]
 
 ################## Cubic Day of the Year ##################
 library(nlme)
 
 # consider replacing lags with 5 and/or 10 day average airT and total precip. Also need drainage area
-lme1 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 +  airTemp*prcp + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~1, site = ~airTemp ), data = etS1)
+lme1 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~1, site = ~1 ), data = etS1)
 summary(lme1)
 
 plot(lme1)
@@ -213,7 +185,7 @@ acf(resid(lme1), lag = 1000)
 
 plot(etS1$dOY, resid(lme1))
 
-rmse(resid(lme1)) # 0.886
+rmse(resid(lme1)) # 0.943
 
 
 # without dOY
@@ -433,4 +405,212 @@ plot(m6Gamm$gam)
 
 
 # try separate smoothers for HUC 4 or HUC 8 or based on latitudinal groupings
+
+
+
+################# JAGS #####################
+
+plot(et2$airTemp, et2$temp)
+
+sink("code/cubicDay.txt")
+cat("
+  model{
+    # Priors
+    alpha <- dnorm(0, 0.01)
+    b.air <- dnorm(0, 0.01)
+    b.air1 <- dnorm(0, 0.01)
+    b.air2 <- dnorm(0, 0.01)
+    b.prcp <- dnorm(0, 0.01)
+    b.prcp1 <- dnorm(0, 0.01)
+    b.prcp2 <- dnorm(0, 0.01)
+    b.lat <- dnorm(0, 0.01)
+    b.lon <- dnorm(0, 0.01)
+    b.forest <- dnorm(0, 0.01)
+    b.elev <- dnorm(0, 0.01)
+    b.slope <- dnorm(0, 0.01)
+    b.wetland <- dnorm(0, 0.01)
+    b.coarse <- dnorm(0, 0.01)
+    b.drain <- dnorm(0, 0.01)
+    b.air.drain <- dnorm(0, 0.01)
+    
+    # Hyperpriors for Random Effects
+    sigma.site ~ dunif(0, 5)
+    tau.site <- 1 / sigma.site * sigma.site
+    #tau.site ~ dgamma(0.01, 0.01)    
+    #sigma.site <- pow(1/tau.site, 0.5) # sqrt of 1/tau
+
+    sigma.year ~ dunif(0, 5)
+    tau.year <- 1 / sigma.year * sigma.year
+    
+    for(i in 1:n.sites) {
+    b.site[i] ~ dnorm(0, tau.site)
+    }
+
+    for(i in 1:n.years) {
+      b.year[i] ~ dnorm(0, tau.year)
+    }
+    
+    # Autocorrelation structure
+    
+    # Linear Model
+    for(i in 1:n.obs) {
+    temp[i] <- alpha + b.site[site[i]] + b.year[year[i]] + b.air*airTemp[i] + b.air1*airTempLagged1[i] + b.air2*airTempLagged2[i] + b.prcp*prcp[i] + b.prcp1*prcpLagged1[i] + b.prcp2*prcpLagged2[i] + b.lat*Latitude[i] + b.lon*Longitude[i] + b.forest*forest[i] + b.elev*BasinElevationM[i] + b.slope*ReachSlopePCNT[i] + b.wetland*CONUSWetland[i] + b.coarse*SurficialCoarseC[i] + b.drain*Drainage[i] + b.air.drain*airTemp[i]*Drainage[i]
+    #temp[i] ~ dnorm(stream.mu[i], tau)T(0, 80) # prevent stream temperatures below 0 - not needed if only analyzing growing season
+    }
+    }
+    ", fill = TRUE)
+sink()
+
+n.obs <- dim(etS)[1]
+n.sites <- length(unique(etS$site))
+
+inits1 <- function() {
+  list(sigma = runif(1, 1, 2))
+}
+
+params1 <- c(    "alpha",
+                 "b.air",
+                 "b.air1",
+                 "b.air2",
+                 "b.prcp",
+                 "b.prcp1",
+                 "b.prcp2",
+                 "b.lat",
+                 "b.lon",
+                 "b.forest",
+                 "b.elev",
+                 "b.slope",
+                 "b.wetland",
+                 "b.coarse",
+                 "b.drain",
+                 "b.air.drain",
+                 "sigma")
+
+data1 <- list(temp = etS$temp,
+              airTemp = etS$airTemp,
+              airTempLagged1 = etS$airTempLagged1,
+              airTempLagged2 = etS$airTempLagged2,
+              prcp = etS$prcp,
+              prcpLagged1 = etS$prcpLagged1,
+              prcpLagged2 = etS$prcpLagged2,
+              Latitude = etS$Latitude,
+              Longitude = etS$Longitude,
+              site = as.factor(etS$site),
+              year = as.factor(etS$year),
+              forest = etS$Forest,
+              BasinElevationM = etS$BasinElevationM,
+              ReachSlopePCNT = etS$ReachSlopePNCT,
+              CONUSWetland = etS$CONUSWetland,
+              SurficialCoarseC = etS$SuficialCoarseC,
+              Drainage = etS$TotDASqKM,
+              n.obs = n.obs,
+              n.years = length(unique(etS$year)),
+              n.sites = n.sites)
+
+
+
+n.burn = 10000
+n.it = 3000
+n.thin = 6
+
+library(parallel)
+library(rjags)
+
+CL <- makeCluster(3)
+clusterExport(cl=CL, list("data1", "inits1", "params1", "n.obs", "n.sites", "n.burn", "n.it", "n.thin"), envir = environment())
+clusterSetRNGStream(cl=CL, iseed = 2342)
+
+out <- clusterEvalQ(CL, {
+  library(rjags)
+  load.module('glm')
+  jm <- jags.model("Mohseni.txt", data1, inits1, n.adapt=n.burn, n.chains=1)
+  fm <- coda.samples(jm, params1, n.iter = n.it, thin = n.thin)
+  return(as.mcmc(fm))
+})
+
+out32 <- mcmc.list(out)
+stopCluster(CL)
+
+rm(out)
+
+pdf(file="C:/Users/dhocking/Dropbox/out32.pdf", width=10, height=10)
+plot(out32[ , c("alpha",
+                "b.air",
+                "b.air1",
+                "b.air2",
+                "b.prcp",
+                "b.prcp1",
+                "b.prcp2",
+                "b.lat",
+                "b.lon",
+                "b.forest",
+                "b.elev",
+                "b.slope",
+                "b.wetland",
+                "b.coarse",
+                "b.drain",
+                "b.air.drain",
+                "sigma")])
+dev.off()
+summary(out3[ , c("alpha",
+                  "b.air",
+                  "b.air1",
+                  "b.air2",
+                  "b.prcp",
+                  "b.prcp1",
+                  "b.prcp2",
+                  "b.lat",
+                  "b.lon",
+                  "b.forest",
+                  "b.elev",
+                  "b.slope",
+                  "b.wetland",
+                  "b.coarse",
+                  "b.drain",
+                  "b.air.drain",
+                  "sigma")])
+
+library(ggmcmc)
+#ggmcmc(ggs(out3[ , c("B.air", "B.air1", "B.air2", "gam", "alpha", "beta", "sigma")]))
+
+ss <- summary(out3[ , -c(1:5)])
+streamTmeans <- ss$statistics[ , "Mean"]
+
+Coefs <- as.list(summary(out3[ , c(1:6)])$statistics[ , "Mean"])
+names(Coefs)
+
+si <- Coefs$mu + (Coefs$alpha - Coefs$mu) / (1 + exp(Coefs$b0.g*(Coefs$beta - etS$temp)))
+#si2 <- sapply(si, FUN = rnorm, sd=Coefs$sigma, simplify = TRUE)
+lsi.mu <- log(si)
+err <- NA
+for(i in 1:length(si)) { err[i] <- rnorm(1, lsi.mu[i], Coefs$sigma)}
+si2 <- exp(lsi)
+
+plot(etS$temp, si2)
+abline(0, 1, col = 'red')
+#m1 <- apply(out3[ , "stream.mu"])
+Resids <- etS$temp - si
+rmse(Resids)
+
+plot(etS$temp, streamTmeans)
+abline(0, 1, col = 'red')
+#m1 <- apply(out3[ , "stream.mu"])
+Resids <- etS$temp - streamTmeans
+rmse(Resids)
+
+
+
+
+Tstream <- matrix(NA, length(etS$temp), 1)
+for(i in 1:length(etS$temp)){
+  Tstream[i] <- apply(as.matrix(out3[ , c(paste("stream.mu[", i, "]", sep =""))]), 2, FUN = quantile, probs = c(0.5))
+}
+
+plot(etS$temp, Tstream)
+abline(0, 1, col = 'red')
+
+rmse((etS$temp - Tstream))
+
+txt1 <- "done"
+write.table(txt1, file = "C:/Users/dhocking/Dropbox/done.txt")
 

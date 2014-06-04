@@ -23,12 +23,12 @@ library(gridExtra)
 library(nlme)
 library(zoo)
 
-#setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
-setwd('C:/KPONEIL/GitHub/projects/temperatureProject/')
+setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
+#setwd('C:/KPONEIL/GitHub/projects/temperatureProject/')
 
 
-baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
-#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+#baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -59,13 +59,13 @@ validate = T
   createBiasMaps <- F
 
 #Data source agencies?
-CTDEP  <- T
-MAFW   <- T
+CTDEP  <- F
+MAFW   <- F
 MAUSGS <- T
-NHFG   <- T
-NHDES  <- T
-USFS   <- T
-VTFWS  <- T
+NHFG   <- F
+NHDES  <- F
+USFS   <- F
+VTFWS  <- F
 MEDMR  <- F
 MTUSGSYellowstone <- F
 MTUSGSGlacier <- F
@@ -84,7 +84,7 @@ sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS'
 dataSource <- sourceNames[sourceChoice == T]
 
 #sourceList <- paste0(paste0(dataSource, collapse = '_'))
-sourceList <- paste0(paste0(dataSource, collapse = '_'), '_2014-04-24')
+sourceList <- paste0(paste0(dataSource, collapse = '_'), '_2014-05-28')
 
 #Load "et" for the agencies:
 load(paste0(dataOutDir, sourceList,  '/et_', sourceList, '.RData'))
@@ -191,6 +191,12 @@ et <- slide(et, Var = "airTemp", GroupVar = "site", slideBy = -2, NewVar='airTem
 et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -1, NewVar='prcpLagged1')
 et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
 et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
+
+```
+
+```{r save et for use in analysis}
+
+save(et, file=paste0(dataOutDir, 'et.RData'))
 
 ```
 

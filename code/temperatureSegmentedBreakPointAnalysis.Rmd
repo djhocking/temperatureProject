@@ -37,14 +37,14 @@ Which agencies do you want to pull data from?
 ```{r Choose data source}
 
 #Northeast
-CTDEP  <- T
-MAFW   <- T
+CTDEP  <- F
+MAFW   <- F
 MAUSGS <- T
-NHFG   <- T
-NHDES  <- T
-USFS   <- T
-VTFWS  <- T
-MEDMR  <- T
+NHFG   <- F
+NHDES  <- F
+USFS   <- F
+VTFWS  <- F
+MEDMR  <- F
 
 #Montana
 MTUSGSYellowstone <- F
@@ -75,8 +75,8 @@ if( !reRunBP ) {
 
 ```{r Make graphs?}
 # settings variables
-makeSpringFallGraphs <- T
-indexAbnormalSummerGraphs <- T
+makeSpringFallGraphs <- F
+indexAbnormalSummerGraphs <- F
 
 #Creates folders for graphs if they don't exist:
 #-----------------------------------------------
