@@ -13,11 +13,11 @@ library(maptools)
 library(nlme)
 
 setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
-setwd('C:/Users/dhocking/Documents/temperatureProject/')
+#setwd('C:/Users/dhocking/Documents/temperatureProject/')
 
-baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
+#baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
 baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
-baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
+#baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -51,13 +51,22 @@ if(WB) {
                      FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
   
 } else {
-  et2 <- et[ , c("siteYear", "year", "site", "HUC_4", "HUC_8", "HUC_12", "TNC_DamCount", "date", "dOY", "day", "temp", "airTemp", "prcp", "prcpLagged1", "prcpLagged2", "srad", "dayl", "swe", "airTempLagged1", "airTempLagged2", "Latitude", "Longitude", "Forest", "Agriculture", "Herbacious", "Developed", "Wetland", "Water", "Impervious", "BasinSlopeDEG", "HydrologicGroupAB", "SurficialCoarseC", "TotDASqKM", "BasinElevationM",  "CONUSWetland", "ImpoundmentsOpenSqKM", "ReachSlopePCNT")] # flow, "season",
+  
+  # replace missing spring and fall BP with means for clipping the data to the synchronized season
+  et1 <- et
+  et1[is.na(et$springBP), "springBP"] <- mean(et$springBP, na.rm=T)
+  et1[is.na(et$fallBP), "fallBP"] <- mean(et$fallBP, na.rm=T)
+  et1 <- et[which(et1$dOY >= et1$springBP & et1$dOY <= et1$fallBP), ]
+  
+  # keep just the variables of interest
+  et2 <- et1[ , c("siteYear", "year", "site", "HUC_4", "HUC_8", "HUC_12", "TNC_DamCount", "date", "dOY", "day", "temp", "airTemp", "prcp", "prcpLagged1", "prcpLagged2", "srad", "dayl", "swe", "airTempLagged1", "airTempLagged2", "Latitude", "Longitude", "Forest", "Agriculture", "Herbacious", "Developed", "Wetland", "Water", "Impervious", "BasinSlopeDEG", "HydrologicGroupAB", "SurficialCoarseC", "TotDASqKM", "BasinElevationM",  "CONUSWetland", "ImpoundmentsOpenSqKM", "ReachSlopePCNT")] # flow, "season",
   
   et2$temp[which(et2$temp < 0 & et2$temp > -1)] <- 0
   et2$temp[which(et2$temp <= -1)] <- NA
   et2 <- et2[which(et2$TotDASqKM <= 2000), ]
   et2 <- et2[which(et2$ImpoundmentsOpenSqKM <= 40), ]
   et2 <- na.omit(et2)
+  
   
   # Scale if necessary or desired
   # Zuur p. 485
@@ -66,15 +75,6 @@ if(WB) {
                apply(X = et2[ ,12:dim(et2)[2]], MARGIN=2,
                      FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
 }
-
-
-et2$jDay <- as.numeric(as.Date(et2$date, format = "%m%d%Y")) + 2440588
-etS$jDayS <- (et2$jDay - mean(et2$jDay, na.rm = T)) / (sd(et2$jDay, na.rm = T))
-etS$jDayC <- (et2$jDay - mean(et2$jDay, na.rm = T))
-
-etS$sinDOY <- sin(2*pi/360*etS$dOY)
-etS$cosDOY <- cos(2*pi/360*etS$dOY)
-etS$scDOY <- sin(2*pi/360*etS$dOY) + cos(2*pi/360*etS$dOY)
 
 etS$month <- format(etS$date, '%m')
 
@@ -144,13 +144,13 @@ panel.smooth.big <- function (x, y, col = par("col"), bg = NA, pch = par("pch"),
             col = col.smooth, ...)
 }
 
-Pairs1 <- etS[c(runif(1000, 1, length(etS$temp))) , c("temp", "date.x", "dOY", "airTemp", "airTempLagged1", "airTempLagged2", "sinDOY", "cosDOY", "prcp", "srad", "dayl", "swe")]
+Pairs1 <- etS[c(runif(1000, 1, length(etS$temp))) , c("temp", "date", "dOY", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "srad", "dayl", "swe")]
 
 pairs(Pairs1, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist)
 
 Pairs2 <- etS[c(runif(1000, 1, length(etS$temp))) , c("temp", "Forest", "Agriculture", "HydrologicGroupAB", "SurficialCoarseC", "TotDASqKM", "BasinElevationM",  "CONUSWetland", "ImpoundmentsOpenSqKM", "ReachSlopePCNT")]
 
-pairs(Pairs2, upper.panel=panel.smooth, lower.panel=panel.cor, diag.panel=panel.hist)
+pairs(Pairs2, upper.panel=panel.smooth.big, lower.panel=panel.cor, diag.panel=panel.hist)
 
 par(mfrow = c(1,1))
 
@@ -165,13 +165,14 @@ par(mfrow = c(1,1))
 #                 dayl + srad + swe +
 #                 sin(2*pi/360*dOY) + cos(2*pi/360*dOY), random = list(site = ~ airTemp + airTempLagged1 + airTempLagged2 + Forest, year = ~sin(2*pi/360*dOY) + cos(2*pi/360*dOY)), data = etS, na.action = "na.omit")) # |year/site ??? TotDASqKM+ ImpoundmentsOpenSqKM+ 
 
-etS1 <- etS[which(et2$dOY >= mean(et$meanSpringBP, na.rm=T) & et2$dOY <= mean(et$meanFallBP)), ]
-
 ################## Cubic Day of the Year ##################
 library(nlme)
 
 # consider replacing lags with 5 and/or 10 day average airT and total precip. Also need drainage area
-lme1 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~1, site = ~1 ), data = etS1)
+lme1 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~1, site = ~1 ), data = etS)
+summary(lme1)
+
+lme1 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(site = ~dOY + I(dOY^2) + I(dOY^3)), data = etS)
 summary(lme1)
 
 plot(lme1)
@@ -189,6 +190,12 @@ plot(etS1$dOY, resid(lme1))
 
 rmse(resid(lme1)) # 0.943
 
+ranef(lme1)
+
+plot(etS1$dOY, fitted(lme1))
+
+etS1$lme1 <- fitted(lme1)
+ggplot(data=etS1[etS1$year >= 2007, ], aes(dOY, lme1)) + geom_point(aes(dOY, temp)) + geom_line(colour='red') + facet_grid(year ~ site) 
 
 # without dOY
 lme2 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 +  airTemp*prcp, random = list(year = ~1, site = ~airTemp), data = etS1)
@@ -280,13 +287,21 @@ vis.gam(bam1,theta=30,ticktype="detailed", view=c("airTemp", "site"))
 vis.gam(bam1,theta=-45,ticktype="detailed",se=2,  view=c("airTemp", "site"))
 vis.gam(bam1,plot.type="contour",  view=c("airTemp", "site"))
 
+etS1$lme1 <- fitted(lme1)
+ggplot(data=etS1[etS1$year >= 2007, ], aes(dOY, lme1)) + geom_point(aes(dOY, temp)) + geom_line(colour='red') + facet_grid(year ~ site) 
+
+plot(bam1)
+
+
+system.time(bam1 <- bam(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 +  airTemp*prcp + s(dOY, by = fsite:fyear) + s(fsite, bs = 're') + s(fyear, bs = 're'), data = etS1))
+summary(bam1) # r2 = 0.971
 
 
 # gamm4
 library(gamm4)
 ?gamm4
 
-system.time(gamm4Full <- gamm4(temp ~ airTemp + airTempLagged1+airTempLagged2+ prcp + prcpLagged1 + prcpLagged2 +Latitude+Longitude+Forest+ Agriculture+BasinElevationM+ ReachSlopePCNT+CONUSWetland+ SurficialCoarseC + s(dOY) + prcp*airTemp, random = ~(1| site) + (1 | year), data = etS)) 
+system.time(gamm4Full <- gamm4(temp ~ airTemp + airTempLagged1+airTempLagged2+ prcp + prcpLagged1 + prcpLagged2 +Latitude+Longitude+Forest+ Agriculture+BasinElevationM+ ReachSlopePCNT+CONUSWetland+ SurficialCoarseC + s(dOY) + prcp*airTemp, random = ~(1| site) + (1 | year), data = etS1)) 
 
 # Error in crossprod(root.phi %*% Zt) : 
 # Cholmod error 'problem too large' at file ../Core/cholmod_aat.c, line 173
@@ -412,28 +427,31 @@ plot(m6Gamm$gam)
 
 ################# JAGS #####################
 
-plot(et2$airTemp, et2$temp)
+plot(etS$airTemp, etS$temp)
+points(etS$airTemp[10111], etS$temp[10111], col='red')
 
 sink("code/cubicDay.txt")
 cat("
   model{
     # Priors
-    alpha <- dnorm(0, 0.01)
-    b.air <- dnorm(0, 0.01)
-    b.air1 <- dnorm(0, 0.01)
-    b.air2 <- dnorm(0, 0.01)
-    b.prcp <- dnorm(0, 0.01)
-    b.prcp1 <- dnorm(0, 0.01)
-    b.prcp2 <- dnorm(0, 0.01)
-    b.lat <- dnorm(0, 0.01)
-    b.lon <- dnorm(0, 0.01)
-    b.forest <- dnorm(0, 0.01)
-    b.elev <- dnorm(0, 0.01)
-    b.slope <- dnorm(0, 0.01)
-    b.wetland <- dnorm(0, 0.01)
-    b.coarse <- dnorm(0, 0.01)
-    b.drain <- dnorm(0, 0.01)
-    b.air.drain <- dnorm(0, 0.01)
+    alpha ~ dnorm(0, 0.01)
+    b.air ~ dnorm(0, 0.01)
+    b.air1 ~ dnorm(0, 0.01)
+    b.air2 ~ dnorm(0, 0.01)
+    b.prcp ~ dnorm(0, 0.01)
+    b.prcp1 ~ dnorm(0, 0.01)
+    b.prcp2 ~ dnorm(0, 0.01)
+    b.lat ~ dnorm(0, 0.01)
+    b.lon ~ dnorm(0, 0.01)
+    b.forest ~ dnorm(0, 0.01)
+    b.elev ~ dnorm(0, 0.01)
+    b.slope ~ dnorm(0, 0.01)
+    b.wetland ~ dnorm(0, 0.01)
+    b.coarse ~ dnorm(0, 0.01)
+    b.drain ~ dnorm(0, 0.01)
+    b.air.drain ~ dnorm(0, 0.01)
+    sigma ~ dunif(0.00001, 0.99999)
+    tau <- 1/(sigma*sigma)
     
     # Hyperpriors for Random Effects
     sigma.site ~ dunif(0, 5)
@@ -456,8 +474,8 @@ cat("
     
     # Linear Model
     for(i in 1:n.obs) {
-    temp[i] <- alpha + b.site[site[i]] + b.year[year[i]] + b.air*airTemp[i] + b.air1*airTempLagged1[i] + b.air2*airTempLagged2[i] + b.prcp*prcp[i] + b.prcp1*prcpLagged1[i] + b.prcp2*prcpLagged2[i] + b.lat*Latitude[i] + b.lon*Longitude[i] + b.forest*forest[i] + b.elev*BasinElevationM[i] + b.slope*ReachSlopePCNT[i] + b.wetland*CONUSWetland[i] + b.coarse*SurficialCoarseC[i] + b.drain*Drainage[i] + b.air.drain*airTemp[i]*Drainage[i]
-    #temp[i] ~ dnorm(stream.mu[i], tau)T(0, 80) # prevent stream temperatures below 0 - not needed if only analyzing growing season
+    stream.mu[i] <- alpha + b.site[site[i]] + b.year[year[i]] + b.air*airTemp[i] + b.air1*airTempLagged1[i] + b.air2*airTempLagged2[i] + b.prcp*prcp[i] + b.prcp1*prcpLagged1[i] + b.prcp2*prcpLagged2[i] + b.lat*Latitude[i] + b.lon*Longitude[i] + b.forest*forest[i] + b.elev*BasinElevationM[i] + b.slope*ReachSlopePCNT[i] + b.wetland*CONUSWetland[i] + b.coarse*SurficialCoarseC[i] + b.drain*Drainage[i] + b.air.drain*airTemp[i]*Drainage[i]
+    temp[i] ~ dnorm(stream.mu[i], tau)T(0, 80) # prevent stream temperatures below 0
     }
     }
     ", fill = TRUE)
@@ -467,7 +485,7 @@ n.obs <- dim(etS)[1]
 n.sites <- length(unique(etS$site))
 
 inits1 <- function() {
-  list(sigma = runif(1, 1, 2))
+  list(b.air = rnorm(1, 3.5, 0.5))
 }
 
 params1 <- c(    "alpha",
@@ -486,6 +504,8 @@ params1 <- c(    "alpha",
                  "b.coarse",
                  "b.drain",
                  "b.air.drain",
+                 "sigma.site",
+                 "sigma.year",
                  "sigma")
 
 data1 <- list(temp = etS$temp,
@@ -501,9 +521,9 @@ data1 <- list(temp = etS$temp,
               year = as.factor(etS$year),
               forest = etS$Forest,
               BasinElevationM = etS$BasinElevationM,
-              ReachSlopePCNT = etS$ReachSlopePNCT,
+              ReachSlopePCNT = etS$ReachSlopePCNT,
               CONUSWetland = etS$CONUSWetland,
-              SurficialCoarseC = etS$SuficialCoarseC,
+              SurficialCoarseC = etS$SurficialCoarseC,
               Drainage = etS$TotDASqKM,
               n.obs = n.obs,
               n.years = length(unique(etS$year)),
@@ -511,7 +531,7 @@ data1 <- list(temp = etS$temp,
 
 
 
-n.burn = 10000
+n.burn = 100
 n.it = 3000
 n.thin = 6
 
@@ -520,12 +540,12 @@ library(rjags)
 
 CL <- makeCluster(3)
 clusterExport(cl=CL, list("data1", "inits1", "params1", "n.obs", "n.sites", "n.burn", "n.it", "n.thin"), envir = environment())
-clusterSetRNGStream(cl=CL, iseed = 2342)
+clusterSetRNGStream(cl=CL, iseed = 2345642)
 
 out <- clusterEvalQ(CL, {
   library(rjags)
   load.module('glm')
-  jm <- jags.model("Mohseni.txt", data1, inits1, n.adapt=n.burn, n.chains=1)
+  jm <- jags.model("code/cubicDay.txt", data1, inits1, n.adapt=n.burn, n.chains=1)
   fm <- coda.samples(jm, params1, n.iter = n.it, thin = n.thin)
   return(as.mcmc(fm))
 })
@@ -535,7 +555,7 @@ stopCluster(CL)
 
 rm(out)
 
-pdf(file="C:/Users/dhocking/Dropbox/out32.pdf", width=10, height=10)
+#pdf(file="C:/Users/dhocking/Dropbox/out32.pdf", width=10, height=10)
 plot(out32[ , c("alpha",
                 "b.air",
                 "b.air1",
@@ -552,6 +572,8 @@ plot(out32[ , c("alpha",
                 "b.coarse",
                 "b.drain",
                 "b.air.drain",
+                "sigma.site",
+                "sigma.year",
                 "sigma")])
 dev.off()
 summary(out3[ , c("alpha",
@@ -570,6 +592,8 @@ summary(out3[ , c("alpha",
                   "b.coarse",
                   "b.drain",
                   "b.air.drain",
+                  "sigma.site",
+                  "sigma.year",
                   "sigma")])
 
 library(ggmcmc)
