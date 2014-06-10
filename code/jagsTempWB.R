@@ -526,4 +526,8 @@ summary(M1)
 
 rm(out)
 
+# compare with lme4
+lmer3 <- lmer(temp ~ airTemp + airTempLagged1 + airTempLagged2 + (airTemp + airTempLagged1 + airTempLagged2|site), data = etS)
+summary(lmer3)
+ranef(lmer3)
 
