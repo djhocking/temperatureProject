@@ -11,39 +11,45 @@
     sigma.site ~ dunif(0, 100)
     tau.site <- 1 / (sigma.site * sigma.site)
     
+    mu.air ~ dnorm(0, 0.001)
     sigma.air ~ dunif(0, 100)
     tau.air <- 1 / (sigma.air * sigma.air)
     
+    mu.air1 ~ dnorm(0, 0.001)
     sigma.air1 ~ dunif(0, 100)
     tau.air1 <- 1 / (sigma.air1 * sigma.air1)
     
+    mu.air2 ~ dnorm(0, 0.001)
     sigma.air2 ~ dunif(0, 100)
     tau.air2 <- 1 / (sigma.air2 * sigma.air2)
     
     sigma.year ~ dunif(0, 100)
     tau.year <- 1 / (sigma.year * sigma.year)
     
+    mu.dOY ~ dnorm(0, 0.001)
     sigma.dOY ~ dunif(0, 100)
     tau.dOY <- 1 / (sigma.dOY * sigma.dOY)
     
+    mu.dOY2 ~ dnorm(0, 0.001)
     sigma.dOY2 ~ dunif(0, 100)
     tau.dOY2 <- 1 / (sigma.dOY2 * sigma.dOY2)
     
+    mu.dOY3 ~ dnorm(0, 0.001)
     sigma.dOY3 ~ dunif(0, 100)
     tau.dOY3 <- 1 / (sigma.dOY3 * sigma.dOY3)
     
     for(j in 1:n.sites) {
     b.site[j] ~ dnorm(0, tau.site)
-    b.air[j] ~ dnorm(0, tau.air)
-    b.air1[j] ~ dnorm(0, tau.air1)
-    b.air2[j] ~ dnorm(0, tau.air2)
+    b.air[j] ~ dnorm(mu.air, tau.air)
+    b.air1[j] ~ dnorm(mu.air1, tau.air1)
+    b.air2[j] ~ dnorm(mu.air2, tau.air2)
     }
     
     for(t in 1:n.years) {
     b.year[t] ~ dnorm(0, tau.year)
-    b.dOY[t] ~ dnorm(0, tau.dOY)
-    b.dOY2[t] ~ dnorm(0, tau.dOY2)
-    b.dOY3[t] ~ dnorm(0, tau.dOY3)
+    b.dOY[t] ~ dnorm(mu.dOY, tau.dOY)
+    b.dOY2[t] ~ dnorm(mu.dOY2, tau.dOY2)
+    b.dOY3[t] ~ dnorm(mu.dOY3, tau.dOY3)
     }
     
     # Autocorrelation structure
