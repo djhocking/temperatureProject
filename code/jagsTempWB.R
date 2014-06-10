@@ -420,9 +420,12 @@ cat("
       # Likelihood
       for(i in 1:n){ # n observations
         temp[i] ~ dnorm(stream.mu[i], tau)
-        stream.mu[i] <- inprod(B.site[site[i], ], X.site[i, ]) #+ inprod(B.year[year[i], X.year[i, ]]) # inprod(b.0[], X.0[i, ]) + 
+        stream.mu[i] <- alpha + inprod(B.site[site[i], ], X.site[i, ]) + inprod(B.year[year[i], ], X.year[i, ]) # inprod(b.0[], X.0[i, ]) + 
       }
       
+      # Priors for fixed effects
+      alpha ~ dnorm(0, 0.001)
+
       # prior for model variance
       sigma ~ dunif(0, 100)
       tau <- pow(sigma, -2)
@@ -445,7 +448,7 @@ cat("
       }
       
       # Prior on multivariate normal std deviation
-      tau.B.site.raw[1:K, 1:K] ~ dwish(W[ , ], df.site)
+      tau.B.site.raw[1:K, 1:K] ~ dwish(W.site[ , ], df.site)
       df.site <- K + 1
       sigma.B.site.raw[1:K, 1:K] <- inverse(tau.B.site.raw[ , ])
       for(k in 1:K){
@@ -454,8 +457,31 @@ cat("
         }
         sigma.B.site[k] <- abs(xi[k])*sqrt(sigma.B.site.raw[k, k])
       }
-
-    # 
+      
+      # YEAR EFFECTiS
+      # Priors for random effects of year
+      for(t in 1:Ti){ # Ti years
+        for(l in 1:L){ # L random year effects
+          B.year[t, l] <- xt[l]*B.year.raw[t, l]
+        }
+        B.year.raw[t, 1:L] ~ dmnorm(mu.year.raw[ ], tau.B.year.raw[ , ])
+      }
+      for(l in 1:L){
+        mu.year[l] <- xt[l]*mu.year.raw[l]
+        mu.year.raw[l] ~ dnorm(0, 0.0001)
+        xt[l] ~ dunif(0, 100)
+      }
+      
+      # Prior on multivariate normal std deviation
+      tau.B.year.raw[1:L, 1:L] ~ dwish(W.year[ , ], df.year)
+      df.year <- L + 1
+      sigma.B.year.raw[1:L, 1:L] <- inverse(tau.B.year.raw[ , ])
+      for(l in 1:L){
+        for(l.prime in 1:L){
+          rho.B.year[l, l.prime] <- sigma.B.year.raw[l, l.prime]/sqrt(sigma.B.year.raw[l, l]*sigma.B.year.raw[l.prime, l.prime])
+        }
+        sigma.B.year[l] <- abs(xt[l])*sqrt(sigma.B.year.raw[l, l])
+      }
     }
     ", fill = TRUE)
 sink()
@@ -467,18 +493,37 @@ variables.site <- c("Intercept-site",
 J <- length(unique(etS$site))
 K <- length(variables.site)
 n <- dim(etS)[1]
-W <- diag(K)
-X.site <- data.frame(int=1, 
-                airT=etS$airTemp, 
-                airT1=etS$airTempLagged1,
-                airT2=etS$airTempLagged2)
+W.site <- diag(K)
+X.site <- data.frame(int = 1, 
+                airT = etS$airTemp, 
+                airT1 = etS$airTempLagged1,
+                airT2 = etS$airTempLagged2)
+
+variables.year <- c("Intercept-year",
+                    "dOY",
+                    "dOY2",
+                    "dOY3")
+Ti <- length(unique(etS$year))
+L <- length(variables.year)
+W.year <- diag(L)
+X.year <- data.frame(int=1, 
+                dOY = etS$dOY, 
+                dOY2 = etS$dOY^2,
+                dOY3 = etS$dOY^3)
+
+
 data <- list(n = n, 
              J = J, 
              K = K, 
-             W = W,
+             Ti = Ti,
+             L = L,
+             W.site = W.site,
+             W.year = W.year,
              temp = etS$temp,
              X.site = as.matrix(X.site),
-             site = etS$site)
+             X.year = as.matrix(X.year),
+             site = as.factor(etS$site),
+             year = as.factor(etS$year))
 
 inits <- function(){
   list(#B.raw = array(rnorm(J*K), c(J,K)), 
@@ -488,12 +533,16 @@ inits <- function(){
        xi = runif(K))
 }
 
-params <- c("B.site",
+params <- c("alpha",
+            "sigma",
+            "B.site",
             "rho.B.site",
             "mu.site",
-            #"stream.mu",
-            "sigma",
-            "sigma.B.site")
+            "sigma.B.site",
+            "B.year",
+            "rho.B.year",
+            "mu.year",
+            "sigma.B.year")
 
 #M1 <- bugs(etS, )
 
@@ -505,7 +554,7 @@ library(parallel)
 library(rjags)
 
 CL <- makeCluster(3)
-clusterExport(cl=CL, list("data", "inits", "params", "K", "J", "n", "W", "X.site", "n.burn", "n.it", "n.thin"), envir = environment())
+clusterExport(cl=CL, list("data", "inits", "params", "K", "J", "Ti", "L", "n", "W.site", "W.year", "X.site", "X.year", "n.burn", "n.it", "n.thin"), envir = environment())
 clusterSetRNGStream(cl=CL, iseed = 2345642)
 
 system.time(out <- clusterEvalQ(CL, {
@@ -527,7 +576,7 @@ summary(M1)
 rm(out)
 
 # compare with lme4
-lmer3 <- lmer(temp ~ airTemp + airTempLagged1 + airTempLagged2 + (airTemp + airTempLagged1 + airTempLagged2|site), data = etS)
-summary(lmer3)
-ranef(lmer3)
+# Random slopes for crossed
+lmer7 <- lmer(temp ~ airTemp + airTempLagged1 + airTempLagged2 + dOY + I(dOY^2) + I(dOY^3) + (airTemp + airTempLagged1 + airTempLagged2 |site) + (dOY + I(dOY^2) + I(dOY^3)|year), data = etS)
+summary(lmer7)
 
