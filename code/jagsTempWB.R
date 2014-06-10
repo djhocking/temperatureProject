@@ -414,17 +414,176 @@ rm(out)
 ############# Correlated Random Intercepts and Slopes #############
 # Inverse Wishart and Multivariate normal (Gelman and Hill p378)
 
+# Random Site Effects
+sink("code/correlatedSlopesSites.txt")
+cat("
+    model{
+    # Likelihood
+    for(i in 1:n){ # n observations
+    temp[i] ~ dnorm(stream.mu[i], tau)
+    stream.mu[i] <- inprod(B.site[site[i], ], X.site[i, ]) #+ inprod(B.year[year[i], ], X.year[i, ]) # inprod(b.0[], X.0[i, ]) + 
+    }
+    
+    # prior for model variance
+    sigma ~ dunif(0, 100)
+    tau <- pow(sigma, -2)
+    
+    # priors coefs for fixed effect predictors
+    #for(k in 1:K.0){
+    # b.0[k] ~ dnorm(0, 0.001) 
+    #}
+    
+    # Priors for random effects of site
+    for(j in 1:J){ # J sites
+    for(k in 1:K){ # K random site effects
+    B.site[j, k] <- xi[k]*B.site.raw[j, k]
+    }
+    B.site.raw[j, 1:K] ~ dmnorm(mu.site.raw[ ], tau.B.site.raw[ , ])
+    }
+    for(k in 1:K){
+    mu.site[k] <- xi[k]*mu.site.raw[k]
+    mu.site.raw[k] ~ dnorm(0, 0.001)
+    xi[k] ~ dunif(0, 100)
+    }
+    
+    # Prior on multivariate normal std deviation
+    tau.B.site.raw[1:K, 1:K] ~ dwish(W.site[ , ], df.site)
+    df.site <- K + 1
+    sigma.B.site.raw[1:K, 1:K] <- inverse(tau.B.site.raw[ , ])
+    for(k in 1:K){
+    for(k.prime in 1:K){
+    rho.B.site[k, k.prime] <- sigma.B.site.raw[k, k.prime]/sqrt(sigma.B.site.raw[k, k]*sigma.B.site.raw[k.prime, k.prime])
+    }
+    sigma.B.site[k] <- abs(xi[k])*sqrt(sigma.B.site.raw[k, k])
+    }
+    }
+    ", fill = TRUE)
+sink()
+
+variables.site <- c("Intercept-site",
+                    "Air Temperature",
+                    "Air Temp Lag1",
+                    "Air Temp Lag2")
+J <- length(unique(etS$site))
+K <- length(variables.site)
+n <- dim(etS)[1]
+W.site <- diag(K)
+X.site <- data.frame(int = 1, 
+                     airT = etS$airTemp, 
+                     airT1 = etS$airTempLagged1,
+                     airT2 = etS$airTempLagged2)
+
+data <- list(n = n, 
+             J = J, 
+             K = K, 
+             Ti = Ti,
+             L = L,
+             W.site = W.site,
+             W.year = W.year,
+             temp = etS$temp,
+             X.site = X.site, #as.matrix(X.site),
+             X.year = as.matrix(X.year),
+             site = as.factor(etS$site),
+             year = as.factor(etS$year))
+
+inits <- function(){
+  list(#B.raw = array(rnorm(J*K), c(J,K)), 
+    #mu.site.raw = rnorm(K),
+    sigma = runif(1),
+    #tau.B.site.raw = rwish(K + 1, diag(K)),
+    xi = runif(K))
+}
+
+params <- c("sigma",
+            "B.site",
+            "rho.B.site",
+            "mu.site",
+            "sigma.B.site")
+
+#M1 <- bugs(etS, )
+
+n.burn = 500
+n.it = 1000
+n.thin = 1
+
+library(parallel)
+library(rjags)
+
+CL <- makeCluster(3)
+clusterExport(cl=CL, list("data", "inits", "params", "K", "J", "Ti", "L", "n", "W.site", "X.site", "n.burn", "n.it", "n.thin"), envir = environment())
+clusterSetRNGStream(cl=CL, iseed = 2345642)
+
+system.time(out <- clusterEvalQ(CL, {
+  library(rjags)
+  load.module('glm')
+  jm <- jags.model("code/correlatedSlopesSites.txt", data, inits, n.adapt=n.burn, n.chains=1)
+  fm <- coda.samples(jm, params, n.iter = n.it, thin = n.thin)
+  return(as.mcmc(fm))
+}))
+
+M1 <- mcmc.list(out)
+stopCluster(CL)
+pdf("/Users/Dan/Dropbox/correlatedSlopesSites.pdf")
+plot(M1)
+dev.off()
+
+summary(M1)
+
+summary(M1)$statistics[ , "Mean"]
+
+# Make "Fixed Effects" Output like summary(lmer)
+fix.ef <- as.data.frame(matrix(NA, k, 2))
+names(fix.ef) <- c("Mean", "Std. Error")
+row.names(fix.ef) <- variables.site
+for(k in 1:K){
+  fix.ef[k, ] <- summary(M1)$statistics[paste0('mu.site[',k,']') , c("Mean", "SD")]
+}
+fix.ef
+
+# Make Random Effects Output like summary(lmer)
+ran.ef <- as.data.frame(matrix(NA, k, 2))
+names(ran.ef) <- c("Variance", "Std. Dev.")
+row.names(ran.ef) <- variables.site
+for(k in 1:K){
+  ran.ef[k, 2] <- summary(M1)$statistics[paste0('sigma.B.site[',k,']') , c("Mean")]
+  ran.ef[k, 1] <- ran.ef[k, 2] ^ 2
+}
+ran.ef
+
+# Make correlation matrix of random effects
+cor.site <- as.data.frame(matrix(NA, K, K))
+names(cor.site) <- variables.site
+row.names(cor.site) <- variables.site
+for(k in 1:K){
+  for(k.prime in 1:K){
+    cor.site[k, k.prime] <- summary(M1)$statistics[paste('rho.B.site[',k,',',k.prime,']', sep=""), "Mean"]
+  }
+}
+cor.site <- round(cor.site, digits=3)
+cor.site[upper.tri(cor.site, diag=TRUE)] <- ''
+cor.site
+
+rm(out)
+
+# compare with lme4
+# Random slopes for crossed
+lmer6 <- lmer(temp ~ airTemp + airTempLagged1 + airTempLagged2 + (airTemp + airTempLagged1 + airTempLagged2 |site), data = etS)
+summary(lmer6)
+ranef(lmer7)
+
+
+# Site and Year Effects
 sink("code/correlatedSlopes.txt")
 cat("
     model{
       # Likelihood
       for(i in 1:n){ # n observations
         temp[i] ~ dnorm(stream.mu[i], tau)
-        stream.mu[i] <- alpha + inprod(B.site[site[i], ], X.site[i, ]) + inprod(B.year[year[i], ], X.year[i, ]) # inprod(b.0[], X.0[i, ]) + 
+        stream.mu[i] <- inprod(B.site[site[i], ], X.site[i, ]) + inprod(B.year[year[i], ], X.year[i, ]) # inprod(b.0[], X.0[i, ]) + 
       }
       
       # Priors for fixed effects
-      alpha ~ dnorm(0, 0.001)
+
 
       # prior for model variance
       sigma ~ dunif(0, 100)
@@ -520,7 +679,7 @@ data <- list(n = n,
              W.site = W.site,
              W.year = W.year,
              temp = etS$temp,
-             X.site = as.matrix(X.site),
+             X.site = X.site, #as.matrix(X.site),
              X.year = as.matrix(X.year),
              site = as.factor(etS$site),
              year = as.factor(etS$year))
@@ -533,8 +692,7 @@ inits <- function(){
        xi = runif(K))
 }
 
-params <- c("alpha",
-            "sigma",
+params <- c("sigma",
             "B.site",
             "rho.B.site",
             "mu.site",
@@ -546,7 +704,7 @@ params <- c("alpha",
 
 #M1 <- bugs(etS, )
 
-n.burn = 1000
+n.burn = 500
 n.it = 1000
 n.thin = 1
 
@@ -573,10 +731,13 @@ dev.off()
 
 summary(M1)
 
+summary(M1)$statistics[ , "Mean"]
+
 rm(out)
 
 # compare with lme4
 # Random slopes for crossed
 lmer7 <- lmer(temp ~ airTemp + airTempLagged1 + airTempLagged2 + dOY + I(dOY^2) + I(dOY^3) + (airTemp + airTempLagged1 + airTempLagged2 |site) + (dOY + I(dOY^2) + I(dOY^3)|year), data = etS)
 summary(lmer7)
+ranef(lmer7)
 

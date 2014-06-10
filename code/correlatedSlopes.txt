@@ -3,11 +3,11 @@
       # Likelihood
       for(i in 1:n){ # n observations
         temp[i] ~ dnorm(stream.mu[i], tau)
-        stream.mu[i] <- alpha + inprod(B.site[site[i], ], X.site[i, ]) + inprod(B.year[year[i], ], X.year[i, ]) # inprod(b.0[], X.0[i, ]) + 
+        stream.mu[i] <- inprod(B.site[site[i], ], X.site[i, ]) + inprod(B.year[year[i], ], X.year[i, ]) # inprod(b.0[], X.0[i, ]) + 
       }
       
       # Priors for fixed effects
-      alpha ~ dnorm(0, 0.001)
+
 
       # prior for model variance
       sigma ~ dunif(0, 100)

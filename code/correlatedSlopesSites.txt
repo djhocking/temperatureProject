@@ -1,0 +1,42 @@
+
+    model{
+    # Likelihood
+    for(i in 1:n){ # n observations
+    temp[i] ~ dnorm(stream.mu[i], tau)
+    stream.mu[i] <- inprod(B.site[site[i], ], X.site[i, ]) #+ inprod(B.year[year[i], ], X.year[i, ]) # inprod(b.0[], X.0[i, ]) + 
+    }
+    
+    # prior for model variance
+    sigma ~ dunif(0, 100)
+    tau <- pow(sigma, -2)
+    
+    # priors coefs for fixed effect predictors
+    #for(k in 1:K.0){
+    # b.0[k] ~ dnorm(0, 0.001) 
+    #}
+    
+    # Priors for random effects of site
+    for(j in 1:J){ # J sites
+    for(k in 1:K){ # K random site effects
+    B.site[j, k] <- xi[k]*B.site.raw[j, k]
+    }
+    B.site.raw[j, 1:K] ~ dmnorm(mu.site.raw[ ], tau.B.site.raw[ , ])
+    }
+    for(k in 1:K){
+    mu.site[k] <- xi[k]*mu.site.raw[k]
+    mu.site.raw[k] ~ dnorm(0, 0.001)
+    xi[k] ~ dunif(0, 100)
+    }
+    
+    # Prior on multivariate normal std deviation
+    tau.B.site.raw[1:K, 1:K] ~ dwish(W.site[ , ], df.site)
+    df.site <- K + 1
+    sigma.B.site.raw[1:K, 1:K] <- inverse(tau.B.site.raw[ , ])
+    for(k in 1:K){
+    for(k.prime in 1:K){
+    rho.B.site[k, k.prime] <- sigma.B.site.raw[k, k.prime]/sqrt(sigma.B.site.raw[k, k]*sigma.B.site.raw[k.prime, k.prime])
+    }
+    sigma.B.site[k] <- abs(xi[k])*sqrt(sigma.B.site.raw[k, k])
+    }
+    }
+    
