@@ -9,11 +9,21 @@ baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProje
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
+dataLocalDir <- paste0(baseDir, 'localData')
 graphsDir <- paste0(baseDir, 'graphs/')
 
 source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
 
-load(paste0(dataOutDir, 'et.RData'))
+loadLocalData <- F
+loadetS <- F
+
+if(loadLocalData) {
+  load(paste0(dataLocalDir, 'etSCT'))
+} else {
+  if(loadetS) {
+    load(paste0(dataOutDir, 'etS.RData'))
+  } else {
+    load(paste0(dataOutDir, 'et.RData'))
 
 str(et)
 summary(et)
@@ -25,7 +35,7 @@ et1[is.na(et$fallBP), "fallBP"] <- mean(et$fallBP, na.rm=T)
 et1 <- et1[which(et1$dOY >= et1$springBP & et1$dOY <= et1$fallBP), ]
 
 # Make dataframe with just variables for modeling and order before standardizing
-et2 <- et1[ , c("agency", "date", "AgencyID", "siteYear", "year", "site", "date", "springBP", "fallBP", "FEATUREID", "HUC_4", "HUC_8", "HUC_12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "srad", "dayl", "swe")] #  
+et2 <- et1[ , c("agency", "date", "AgencyID", "siteYear", "year", "site", "date", "springBP", "fallBP", "FEATUREID", "HUC_4", "HUC_8", "HUC_12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  
 
 dim(et2)
 summary(et2) # strange there are some temp <0 and lots of stream temp NA
@@ -33,8 +43,8 @@ et2 <- na.omit(et2)
 dim(et2)
 
 #### temp just use CT - later add ability to pick state ######
-et2 <- et2[et2$agency == "CTDEP", ]
-dim(et2)
+# et2 <- et2[et2$agency == "CTDEP", ]
+# dim(et2)
 #############
 
 etS <- cbind(et2[ ,c(1:14)],
@@ -45,6 +55,8 @@ etS$fyear <- as.factor(etS$year)
 etS$fsite <- as.factor(etS$site)
 
 save(etS, et2, file = paste0(dataOutDir, 'etS.RData'))
+}
+}
 
 ########## JAGS Model ##############
 sink("code/correlatedSlopes.txt")
@@ -110,49 +122,63 @@ cat("
 sink()
 
 # Fixed effects
-variables.fixed <- c("intercept",  
-                     "drainage", 
-                     "forest",
-                     "elevation")
+#variables.fixed <- c("intercept",  
+                     #"drainage", 
+                     #"forest",
+                     #"elevation")
+#K.0 <- length(variables.fixed)
+X.0 <- data.frame(intercept = 1,
+                  lat = etS$Latitude,
+                  lon = etS$Longitude)
+variables.fixed <- names(X.0)
 K.0 <- length(variables.fixed)
-X.0 <- data.frame(int = 1,
-                  drainage = etS$TotDASqKM,
-                  forest = etS$Forest,
-                  elev = etS$ReachElevationM)
+
 
 # Random site effects
-variables.site <- c("Intercept-site",
-                    "Air Temperature",
-                    "Air Temp Lag1",
-                    "Air Temp Lag2",
-                    "Precip",
-                    "Precip Lag1",
-                    "Precip Lag2")
+#variables.site <- c("Intercept-site",
+ #                   "Air Temperature",
+  #                  "Air Temp Lag1",
+   #                 "Air Temp Lag2",
+    #                "Precip",
+     #               "Precip Lag1",
+      #              "Precip Lag2")
+
+# Slope, Aspect, Dams/Impoundments, Agriculture, Wetland, Coarseness, dayl, srad, swe
+
+X.site <- data.frame(intercept.site = 1, 
+                     airTemp = etS$airTemp, 
+                     airTempLag1 = etS$airTempLagged1,
+                     airTempLag2 = etS$airTempLagged2,
+                     precip = etS$prcp,
+                     precipLag1 = etS$prcpLagged1,
+                     precipLag2 = etS$prcpLagged3,
+                     drainage = etS$TotDASqKM,
+                     forest = etS$Forest,
+                     elevation = etS$ReachElevationM,
+                     coarseness = etS$SurficialCoarseC,
+                     wetland = etS$CONUSWetland,
+                     impoundments = etS$ImpoundmentsAllSqKM,
+                     swe = etS$swe)
+variables.site <- names(X.site)
 J <- length(unique(etS$site))
 K <- length(variables.site)
 n <- dim(etS)[1]
 W.site <- diag(K)
-X.site <- data.frame(int = 1, 
-                     airT = etS$airTemp, 
-                     airT1 = etS$airTempLagged1,
-                     airT2 = etS$airTempLagged2,
-                     precip = etS$prcp,
-                     precip1 = etS$prcpLagged1,
-                     precip2 = etS$prcpLagged3)
 
 # Random Year effects
-variables.year <- c("Intercept-year",
-                    "dOY",
-                    "dOY2",
-                    "dOY3")
-Ti <- length(unique(etS$year))
-L <- length(variables.year)
-W.year <- diag(L)
-X.year <- data.frame(int=1, 
+#variables.year <- c("Intercept-year",
+  #                  "dOY",
+   #                 "dOY2",
+    #                "dOY3")
+
+X.year <- data.frame(intercept.year = 1, 
                      dOY = etS$dOY, 
                      dOY2 = etS$dOY^2,
                      dOY3 = etS$dOY^3)
-
+variables.year <- names(X.year)
+Ti <- length(unique(etS$year))
+L <- length(variables.year)
+W.year <- diag(L)
 
 data <- list(n = n, 
              J = J, 
@@ -245,26 +271,26 @@ for(l in 1:L){
 fix.ef
 
 # Make Random Effects Output like summary(lmer)
-ran.ef <- as.data.frame(matrix(NA, K, 2))
-names(ran.ef) <- c("Variance", "Std. Dev.")
-row.names(ran.ef) <- variables.site
+ran.ef.site <- as.data.frame(matrix(NA, K, 2))
+names(ran.ef.site) <- c("Variance", "Std. Dev.")
+row.names(ran.ef.site) <- variables.site
 for(k in 1:K){
-  ran.ef[k, 2] <- summary.stats[paste0('sigma.b.site[',k,']') , c("Mean")]
-  ran.ef[k, 1] <- ran.ef[k, 2] ^ 2
+  ran.ef.site[k, 2] <- summary.stats[paste0('sigma.b.site[',k,']') , c("Mean")]
+  ran.ef.site[k, 1] <- ran.ef.site[k, 2] ^ 2
 }
-ran.ef
+ran.ef.site
 
 # Make Random Effects Output like summary(lmer)
-ran.ef2 <- as.data.frame(matrix(NA, L, 2))
-names(ran.ef2) <- c("Variance", "Std. Dev.")
-row.names(ran.ef2) <- variables.year
+ran.ef.year <- as.data.frame(matrix(NA, L, 2))
+names(ran.ef.year) <- c("Variance", "Std. Dev.")
+row.names(ran.ef.year) <- variables.year
 for(k in 1:L){
-  ran.ef2[k, 2] <- summary.stats[paste0('sigma.b.year[',k,']') , c("Mean")]
-  ran.ef2[k, 1] <- ran.ef2[k, 2] ^ 2
+  ran.ef.year[k, 2] <- summary.stats[paste0('sigma.b.year[',k,']') , c("Mean")]
+  ran.ef.year[k, 1] <- ran.ef.year[k, 2] ^ 2
 }
-ran.ef2
+ran.ef.year
 
-# Make correlation matrix of random effects
+# Make correlation matrix of random site effects
 cor.site <- as.data.frame(matrix(NA, K, K))
 names(cor.site) <- variables.site
 row.names(cor.site) <- variables.site
@@ -277,7 +303,7 @@ cor.site <- round(cor.site, digits=3)
 cor.site[upper.tri(cor.site, diag=TRUE)] <- ''
 cor.site
 
-# Make correlation matrix of random effects
+# Make correlation matrix of random year effects
 cor.year <- as.data.frame(matrix(NA, L, L))
 names(cor.year) <- variables.year
 row.names(cor.year) <- variables.year
@@ -322,14 +348,14 @@ ggplot(all.data, aes(airTemp, streamTemp, group = site)) +
   xlab('Air Temperature (C)') + 
   ylab('Predicted Stream Temperature (C)')
 
-dOY.eff.site <- 
+# dOY.eff.site <- 
 
 err <- pred.t$streamTemp - etS$temp
 rmse(err)
 
 # compare with lme4
 # Random slopes for crossed
-lmer7 <- lmer(temp ~ airTemp + airTempLagged1 + airTempLagged2 + flow + dOY + I(dOY^2) + I(dOY^3) + (airTemp + airTempLagged1 + airTempLagged2 | site) + (dOY + I(dOY^2) + I(dOY^3)|year), data = etS)
+system.time(lmer7 <- lmer(temp ~ TotDASqKM + Forest + ReachElevationM + airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + dOY + I(dOY^2) + I(dOY^3) + (airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 | site) + (dOY + I(dOY^2) + I(dOY^3)|year), data = etS))
 summary(lmer7)
 ranef(lmer7)
 
@@ -348,9 +374,7 @@ summarise(by.site, sum())
 
 
 
-
-
-
+###### Consider: Slope, Aspect, Dams/Impoundments, Agriculture, Wetland, Coarseness, dayl, srad, swe
 
 ####### Add correlation structure for Lat-Lon and/or HUC ########
 
