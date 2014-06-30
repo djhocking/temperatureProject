@@ -2,6 +2,7 @@ graphs/*
 !graphs/shared/
 maps/
 UMassWork/
+rawDataWork/
 DaymetClimateData/
 modelPredictionTimeseries/
 .Rproj.user

@@ -1,0 +1,49 @@
+streamName,agency,site,currentFeatureID,correctFeatureID,localCatchment,notes
+Dog Brook,MEFWS,MEFWS_1,2674036,1,0,
+Below Pokey Dam,MEFWS,MEFWS_10,2673744,1,0,Immediately below dam
+Beaverdam above Rt 9,MEFWS,MEFWS_11,2676110,1,0,Possible beaver dam above
+Palmer Brook at 28.63 km,MEFWS,MEFWS_12,2676316,1,0,
+Roaring brook at 33.77 km,MEFWS,MEFWS_13,2676302,1,0,
+Seavey Brook at 34.28 km,MEFWS,MEFWS_14,2676224,2676258,0,
+Harmon Brk at 48.73 km,MEFWS,MEFWS_15,2673726,1,0,
+Beaverdam at 44.55 km,MEFWS,MEFWS_16,2676108,1,0,In a wetland
+Beaverdam (upper),MEFWS,MEFWS_17,2676110,1,0,Right below a wetland
+Harmon Brook (Upper),MEFWS,MEFWS_18,2673726,1,0,
+Seavey Stream (Upper),MEFWS,MEFWS_19,2676272,1,0,
+Seavey (Crawford) below Rd,MEFWS,MEFWS_2,2674144,1,0,
+Long Lake Stream,MEFWS,MEFWS_20,2676268,1,0,
+Rocky Lake Stream at 27.23 km,MEFWS,MEFWS_21,2677560,1,0,In a wetland
+Rocky Lake Strm at North Conf,MEFWS,MEFWS_22,2677560,1,0,In a wetland
+Southern Inlet Below Rt 191,MEFWS,MEFWS_23,2676504,1,0,
+Northern Inlet at 19 Road,MEFWS,MEFWS_24,2676372,1,0,
+Northern Stream (lowest),MEFWS,MEFWS_25,2676244,1,0,NHDPlus is strange here. Seems to be the best catchment assignment.
+Northern above Decommission,MEFWS,MEFWS_26,2677520,1,0,
+Northern below Love lake,MEFWS,MEFWS_27,2676156,1,0,Just below a lake
+Northern RB Trib at 8.55 km,MEFWS,MEFWS_28,2676188,1,0,
+Creamer Brook at 0.04 km,MEFWS,MEFWS_29,2676156,2677476,0,Strange confluence area. Changed catchment based on NHDPlus High Res layer.
+Joe Brook below road,MEFWS,MEFWS_3,2674044,1,0,
+Dead Brook-Barrows 0.1 km,MEFWS,MEFWS_30,2674146,1,0,
+Richardson Br at 3.86 km,MEFWS,MEFWS_31,2676240,1,0,
+Barrows Brook,MEFWS,MEFWS_32,2674148,1,0,
+Lower Riifles,MEFWS,MEFWS_33,2677944,1,0,East Machias River
+Wigwam Riffles below 2nd Lake,MEFWS,MEFWS_34,2677914,1,0,East Machias River
+Munson Rips Below Round Lake,MEFWS,MEFWS_35,2677898,1,0,East Machias River
+Scott Brook at 15.83 km,MEFWS,MEFWS_36,2677636,1,0,
+Huntley Brook at 16.74 km,MEFWS,MEFWS_37,2677614,1,0,
+Gooch Brook at Lake 8.53 km,MEFWS,MEFWS_38,2676572,1,0,
+Upper Scott Brk at 21.76 km,MEFWS,MEFWS_39,2677584,1,0,
+Leweys Brook,MEFWS,MEFWS_4,2673482,1,0,
+Cook Meadow Brook at 20.28 km,MEFWS,MEFWS_40,2677914,2676384,0,
+Upper Scott spur roads,MEFWS,MEFWS_41,2677636,1,0,
+Clifford below Rt 86,MEFWS,MEFWS_42,2676338,1,0,
+Indian Brk above Clifford 5 km,MEFWS,MEFWS_43,2676350,1,0,
+Rocky Brk above Clifford 3 km,MEFWS,MEFWS_44,2677570,1,0,
+Patrick Lake Outlet RR Tresle,MEFWS,MEFWS_45,2676386,1,0,
+Spirt Brook below Rt 86,MEFWS,MEFWS_46,2676370,1,0,
+Just above EMARC,MEFWS,MEFWS_47,2676686,1,0,Coastal. East Machias River
+Riffle below Hadley Lake,MEFWS,MEFWS_48,2678036,1,0,East Machias River
+Chase Mill Strm Riffle,MEFWS,MEFWS_49,2676642,1,0,Possible braided channel.
+L. Huntley Brk above spur road,MEFWS,MEFWS_5,2673588,1,0,
+Huntley Brook off spur road,MEFWS,MEFWS_6,2674072,1,0,
+Upper Great Meadows Riffle,MEFWS,MEFWS_7,2677824,1,0,East Machias River
+Mainstem below Rt 9,MEFWS,MEFWS_9,2676080,1,0,East Machias River

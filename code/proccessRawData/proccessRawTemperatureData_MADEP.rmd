@@ -1,0 +1,124 @@
+# Clean up the raw data from MADEP.
+# This code reads in and formats the data.
+# The code does not fill in the entire calendar year of the record with NAs as is done in previous versions.
+
+```{r Set directories}
+
+rm(list=ls())
+
+library(xlsx)
+
+baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork'
+
+locations <- read.csv(paste0(baseDir, '/MADEP/dataIn/tblLocationDetails.csv'))
+
+agency <- 'MADEP'
+
+
+setwd(paste0(baseDir, '/MADEP/dataIn/temperatureFiles'))
+files <- list.files()
+
+# To prevent a memory usage error:
+
+# Set RAM limit
+options(java.parameters = "-Xmx16000m")
+
+# Write a function to take out the garbage:
+
+```
+
+```{r Read in and aggregate raw data}
+
+for( i in 1:length(files)){
+
+  gc()
+  
+  print(i)
+  
+  # Read in raw data:
+  dataIn <- read.xlsx(files[i], sheetName='Daily Statistics', colIndex=c(2,3,4,5), as.data.frame=TRUE)
+
+  # Pull site ID:
+  agencyID <- substr(files[i], 1, 5)
+
+  # Store all data:
+  siteData <- data.frame( site = paste0(agency, '_', agencyID), dataIn, 
+                          Latitude = locations$Latitude[locations$UNIQUE_ID == agencyID], 
+                          Longitude = locations$Longitude[locations$UNIQUE_ID == agencyID], 
+                          year = as.numeric(strftime(dataIn$Date, '%Y')),
+                          dOY = as.numeric(strftime(dataIn$Date, '%j')),
+                          agency = agency,
+                          AgencyID = agencyID
+                          )
+
+  # Check to make sure there are no missing records:
+  full <- seq(from=as.Date(min(siteData$Date)),to=as.Date(max(siteData$Date)),by="day")
+  if(nrow(siteData) < length(full) ) {print(paste0('There is a missing record on:', full[!full %in% siteData$Date]))}
+
+  # Join sites:
+  if( i == 1 ) {finalData <- siteData} else( finalData <- rbind(finalData, siteData))
+  }
+```
+
+```{r Post-processing}
+
+# Rename date field
+finalData$date <- finalData$Date
+
+# Put entries into numeric format (NAs will be introduced by coercion)
+finalData$meanTemp <- as.numeric(paste(finalData$Temperature.......................Daily.Mean))
+finalData$minTemp <-  as.numeric(paste(finalData$Temperature.......................Daily.Min ))
+finalData$maxTemp <-  as.numeric(paste(finalData$Temperature.......................Daily.Max ))
+
+finalData <- finalData[, - which(names(finalData) %in% c('Temperature.......................Daily.Mean', 
+                                                         'Temperature.......................Daily.Min', 
+                                                         'Temperature.......................Daily.Max',
+                                                         'Date'))]
+
+# Fix some factor/character BS:
+finalData$site <- paste(finalData$site)
+finalData$agency <- paste(finalData$agency)
+finalData$AgencyID <- paste(finalData$AgencyID)
+
+
+
+
+# Save the data:
+save(finalData, file = paste0(baseDir,'/MADEP/dataOut/streamTempDataOnlyMADEP.RData'))
+
+
+masterData <- finalData
+
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/MADEP/streamTempData_MADEP.RData'))
+
+
+```
+
+
+
+```{r location file}
+
+siteLocs <- unique(finalData[,c('site', 'Latitude', 'Longitude', 'agency')])
+
+write.csv(siteLocs, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/maps/siteLocations/MADEP.csv')
+
+
+
+```
+
+
+
+
+  names(dataIn) <- c('date',  'meanTemp', 'minTemp', 'maxTemp')
+
+
+
+          as.data.frame=TRUE, header=TRUE, colClasses=NA,
+          keepFormulas=FALSE, encoding="unknown")
+
+
+
+read.xlsx(files[i], sheetIndex, sheetName=NULL, rowIndex=NULL,
+          startRow=NULL, endRow=NULL, colIndex=NULL,
+          as.data.frame=TRUE, header=TRUE, colClasses=NA,
+          keepFormulas=FALSE, encoding="unknown", ...)

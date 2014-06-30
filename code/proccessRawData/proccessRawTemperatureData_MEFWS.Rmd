@@ -1,0 +1,108 @@
+# Clean up the raw data from MADEP.
+# This code reads in and formats the data.
+# The code does not fill in the entire calendar year of the record with NAs as is done in previous versions.
+
+```{r Set directories}
+rm(list=ls())
+
+library(xlsx)
+library(reshape2)
+
+baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/'
+
+dataSource <- 'MEFWS'
+
+source('C:/KPONEIL/GitHub/projects/temperatureProject/code/functions/rawDataProcessingFunctions.R')
+
+# To prevent a memory usage error, set RAM limit:
+options(java.parameters = "-Xmx16000m")
+```
+
+```{r Read in and aggregate raw data}
+setwd(paste0(baseDir, dataSource, '/dataIn'))
+
+# Read the sheets of the excel file
+meanT <- read.xlsx('emac_watertemps3.xlsx', sheetName='dailymean', as.data.frame=TRUE)
+minT <- read.xlsx('emac_watertemps3.xlsx', sheetName='dailymin', as.data.frame=TRUE)
+maxT <- read.xlsx('emac_watertemps3.xlsx', sheetName='dailymax', as.data.frame=TRUE)
+siteInfo <- read.xlsx('emac_watertemps3.xlsx', sheetName='Site Info', as.data.frame=TRUE)
+
+# Melt the dataframes
+meanTMelt <- melt(meanT, id.vars="Month.Day")
+minTMelt <- melt(minT, id.vars="Month.Day")
+maxTMelt <- melt(maxT, id.vars="Month.Day")
+
+# Rename
+names(meanTMelt) <- c('date', 'AgencyID', 'temp')
+names(minTMelt) <- c('date', 'AgencyID', 'minTemp')
+names(maxTMelt) <- c('date', 'AgencyID', 'maxTemp')
+
+# Merge them all together
+merge1 <- merge(meanTMelt, minTMelt, by = c('date','AgencyID'))
+record <- merge(merge1, maxTMelt, by = c('date','AgencyID'))
+
+# Pull X's off of the siteIDs
+record$AgencyID <- substr(record$AgencyID, 2, 5)
+
+# Assign columns
+record$agency <- dataSource
+record$site   <- paste0(dataSource, '_', record$AgencyID)
+record$year   <- as.numeric(strftime(record$date, '%Y'))
+record$dOY    <- as.numeric(strftime(record$date, '%j'))
+
+# Reorder
+record <- record[order(record$site,record$year,record$dOY),]
+
+# Pull the site that has no data:
+record <- record[!record$site == "MEFWS_8",]
+
+# Prepare the Metadata
+newInfo <- siteInfo[,c('New.NSO', 'X', 'Y', 'Description')]
+
+names(newInfo) <- c('AgencyID', 'Longitude', 'Latitude', 'description')
+
+record <- merge(record, newInfo, by = 'AgencyID', all.x = T, all.y = F, sort = F)
+
+# Function that trims the NAs off of the ends of the record.
+# Give it a the record dataframe and the name of the column to use for trimming.
+
+masterData <- trimNAsFromRecord(record, "temp")
+
+
+```
+
+```{r Save the data}
+
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/streamTempData_', dataSource, '.RData'))
+
+
+```
+
+
+
+```{r location file}
+
+siteLocs <- unique(finalData[,c('site', 'Latitude', 'Longitude', 'agency')])
+
+write.csv(siteLocs, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/maps/siteLocations/MADEP.csv')
+
+
+
+```
+
+
+
+
+  names(dataIn) <- c('date',  'meanTemp', 'minTemp', 'maxTemp')
+
+
+
+          as.data.frame=TRUE, header=TRUE, colClasses=NA,
+          keepFormulas=FALSE, encoding="unknown")
+
+
+
+read.xlsx(files[i], sheetIndex, sheetName=NULL, rowIndex=NULL,
+          startRow=NULL, endRow=NULL, colIndex=NULL,
+          as.data.frame=TRUE, header=TRUE, colClasses=NA,
+          keepFormulas=FALSE, encoding="unknown", ...)
