@@ -1,0 +1,406 @@
+Overall approach: 
+1) Define bps and slopes by segment for each site/year combo in temperatureSegmentedBreakPointAnalysis.Rmd. 
+2) Model slopes for each segment (2=sp-sum, 3=sum-autumn) as a function of airTemp and fixed covariates. This gets predicted water temp as a function of airTemp and covariates, but does not identify bps.
+3) Model bps as a fucntion of covariates including swe for bp1.
+4) Predict water temp as function of airTemp and covariates between bps for each prediction site
+5) Summarize data for slopes btw bps
+
+Note: run temperatureSegmentedBreakPointAnalysis.Rmd before running this script
+
+```{r load libs}
+rm(list=ls())
+
+library(ggplot2)
+library(relaimpo)
+library(lme4)
+library(DataCombine) # for the slide function
+library(plyr)
+library(reshape)
+library(ggmap)
+library(foreign)
+library(maptools)
+library(gridExtra)
+library(nlme)
+library(zoo)
+
+setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
+#setwd('C:/KPONEIL/GitHub/projects/temperatureProject/')
+
+
+#baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+
+dataInDir <- paste0(baseDir, 'dataIn/')
+dataOutDir <- paste0(baseDir, 'dataOut/')
+graphsDir <- paste0(baseDir, 'graphs/')
+
+source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
+
+```
+
+Which agencies do you want to pull data from?
+```{r Define data sources and other options}
+
+#If removeSelectSites = TRUE, then the file with the list of sites needs to be specified.
+removeSelectSites <- F
+sitesToRemove <- paste0(baseDir, 'dataIn/sitesToRemoveAllNE.csv')
+
+#Do you want all of the plots made?
+makePlots <- F
+
+#Use validation?
+validate = T
+  
+#If validating:
+  # Choose fraction of total # of sites:
+  validateFrac <- 0.1
+
+  #Do you want to create bias maps? (Internet connection required)
+  createBiasMaps <- F
+
+#Data source agencies?
+CTDEP  <- T
+MAFW   <- T
+MAUSGS <- T
+NHFG   <- T
+NHDES  <- T
+USFS   <- T
+VTFWS  <- T
+MEDMR  <- T
+MTUSGSYellowstone <- F
+MTUSGSGlacier <- F
+
+#global vars
+dpiIn <- 400
+
+```
+
+```{r load data} 
+
+#Set up data list.
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier )
+sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS', 'VTFWS',  'MTUSGSYellowstone', 'MTUSGSGlacier')
+
+dataSource <- sourceNames[sourceChoice == T]
+
+#sourceList <- paste0(paste0(dataSource, collapse = '_'))
+sourceList <- paste0(paste0(dataSource, collapse = '_'), '_2014-06-04')
+
+#Load "et" for the agencies:
+load(paste0(dataOutDir, sourceList,  '/et_', sourceList, '.RData'))
+
+#Pull duplicate columns so they doesn't get doubled up
+et <- et[,-which(names(et) %in% c('Latitude', 'Longitude', 'StreamOrder', 'HUC_4', 'HUC_8.x', 'HUC_8.y', 'HUC_12', 'agency'))]
+
+#Load in covariate data to merge into slopes df [no day data]
+for ( i in 1:length(dataSource)){
+
+  #Load covariate data to be merged into slopes df [no day data]
+  load(paste0(dataInDir, dataSource[i], '/covariateData_', dataSource[i], '.RData')) #Fixed over time
+  covariateData$agency <- paste(dataSource[i])
+  dim(covariateData)
+  if ( i == 1) {covs <- covariateData} else (covs <- rbind(covs, covariateData))
+  
+  #Load daymet climate data to be merged into et:
+  load(paste0(dataInDir, dataSource[i], '/streamTempSitesObservedClimateData_', dataSource[i], '.RData')) 
+  
+  #Pull out the columns needed:
+  masterData <- masterData[, c('site', 'year', 'dOY', 'date', 'dayl', 'srad', 'swe', 'tmax', 'tmin', 'vp', 'prcp')]
+  if ( i == 1) {newDay <- masterData} else ( newDay <- rbind(newDay, masterData) )
+}
+
+masterData    <- newDay
+covariateData <- covs
+
+#Merge climate data into main dataframe:
+et <- merge(et, masterData, by = c('site', 'date', 'year', 'dOY'), all.x=T, sort = F )
+
+et$flow <- NA
+et$tAirMin <- et$tmin; et$tAirMax <- et$tmax
+
+#Overwrite NaNs with NAs:
+covariateData <- replace(covariateData, is.na(covariateData), NA)
+
+#Make site a character string so the "merge" function works:
+covariateData$site <- as.character(covariateData$site)
+
+##For testing
+#testSites <- c("MAUSGS_WB_JIMMY", "MAUSGS_SEC_45_DL", "MAUSGS_WEST_BROOK", "MAUSGS_SEC_6_DL", "MAUSGS_SEC_30_DL", "MAUSGS_WB_OBEAR", "MAUSGS_WB_MITCHELL")
+
+#et <- et[et$site %in% testSites,]
+#covariateData <- covariateData[covariateData$site %in% testSites,]
+
+#=================================================================================================================
+#Scale the variables used in the model. Some get log-scaled depending on their distribution over the sites:
+#=================================================================================================================
+# Standard scaling:
+covariateData$LatitudeS              <- (covariateData$Latitude        - mean(covariateData$Latitude       , na.rm=T)) / sd(covariateData$Latitude       , na.rm=T)
+covariateData$LongitudeS             <- (covariateData$Longitude       - mean(covariateData$Longitude      , na.rm=T)) / sd(covariateData$Longitude      , na.rm=T)
+covariateData$ForestS                <- (covariateData$Forest          - mean(covariateData$Forest         , na.rm=T)) / sd(covariateData$Forest         , na.rm=T)
+covariateData$BasinElevationMS       <- (covariateData$BasinElevationM - mean(covariateData$BasinElevationM, na.rm=T)) / sd(covariateData$BasinElevationM, na.rm=T)
+covariateData$ReachSlopePCNTS        <- (covariateData$ReachSlopePCNT  - mean(covariateData$ReachSlopePCNT , na.rm=T)) / sd(covariateData$ReachSlopePCNT , na.rm=T)
+covariateData$WetlandOrWaterS        <- (covariateData$WetlandOrWater  - mean(covariateData$WetlandOrWater , na.rm=T)) / sd(covariateData$WetlandOrWater , na.rm=T)
+
+# Log scaling:
+covariateData$AgricultureLS          <- (log(covariateData$Agriculture          + 0.001) - mean(log(covariateData$Agriculture          + 0.001), na.rm=T)) / sd(log(covariateData$Agriculture          + 0.001), na.rm=T)
+covariateData$TotDASqKMLS            <- (log(covariateData$TotDASqKM            + 0.001) - mean(log(covariateData$TotDASqKM            + 0.001), na.rm=T)) / sd(log(covariateData$TotDASqKM            + 0.001), na.rm=T)
+covariateData$SurficialCoarseCLS     <- (log(covariateData$SurficialCoarseC     + 1    ) - mean(log(covariateData$SurficialCoarseC     + 1    ), na.rm=T)) / sd(log(covariateData$SurficialCoarseC     + 1    ), na.rm=T)
+covariateData$ImpoundmentsOpenSqKMLS <- (log(covariateData$ImpoundmentsOpenSqKM + 1    ) - mean(log(covariateData$ImpoundmentsOpenSqKM + 1    ), na.rm=T)) / sd(log(covariateData$ImpoundmentsOpenSqKM + 1    ), na.rm=T)
+
+et <- merge(et, covariateData, by = 'site', all.x=T, sort = F )
+
+#====================================================================================================
+#Remove slected site/years that have errors in breakpoint assignment (chosen via visual examination):
+#====================================================================================================
+if( removeSelectSites ) {
+  
+  removeSites <- read.csv(sitesToRemove)
+  
+  removeSites$site <- as.character(removeSites$site)
+  
+  et <-  et[!(et$site %in% removeSites$site & et$year %in% removeSites$year),]
+}
+#====================================================================================================
+
+#Get BPs out of et
+bp <- unique(et[,c('site','year','springBP','summerBP','fallBP')]  ) #, 'Latitude', 'Longitude'
+bp <- bp[is.finite(bp$springBP) | is.finite(bp$summerBP) | is.finite(bp$fallBP),]
+bp$site <- as.character(bp$site) #for merging
+  
+siteData <- merge( x = bp, y = covariateData, by = 'site', all.x=T )
+
+# turn Inf to NA in bps
+siteData[!is.finite(siteData$springBP),'springBP'] <- NA
+siteData[!is.finite(siteData$summerBP),'summerBP'] <- NA
+siteData[!is.finite(siteData$fallBP),'fallBP'] <- NA
+
+# merge in count of days
+obsBySiteYear <- ddply(et, .(site,year), summarize,count=length(!is.na(temp)))
+siteData <- merge(x=siteData, y=obsBySiteYear, all.x=T)
+
+```
+
+```{r lag airTemp & prcp}
+et <- et[order(et$count),] # just to make sure et is ordered for the slide function
+
+# airTemp
+et <- slide(et, Var = "airTemp", GroupVar = "site", slideBy = -1, NewVar='airTempLagged1')
+et <- slide(et, Var = "airTemp", GroupVar = "site", slideBy = -2, NewVar='airTempLagged2')
+
+# prcp
+et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -1, NewVar='prcpLagged1')
+et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
+et <- slide(et, Var = "prcp", GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
+
+```
+
+```{r save et for use in analysis}
+
+save(et, file=paste0(dataOutDir, 'et.RData'))
+
+```
+
+Left out to save time:
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+# 5-day mean of prcp 
+siteYearCombos <- unique(et[,c('site','year')])
+
+et$prcp5Day <- NA
+
+window <- 5
+for (i in 1:nrow(siteYearCombos)){
+
+  print(c(i,as.character(siteYearCombos$site[i]),siteYearCombos$year[i],i/nrow(siteYearCombos)))
+  
+  currSite <- which(et$site == as.character(siteYearCombos$site[i]) & et$year == siteYearCombos$year[i] )
+
+  #Need this so sites with very short records don't crash the loop.
+  if(length(currSite) >= window){currMean <-  rollapply(et$prcp[currSite], width=window, fill=NA, mean, align = 'left')} else(currMean <- NA)
+  
+  et$prcp5Day[currSite] <- currMean
+}
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+```{r check out data}
+#pairs(~Latitude+Longitude+Forest+ Impervious+ Agriculture+ BasinElevationM+ ReachSlopePCNT+ TotDASqKM+ WetlandOrWater+ SurficialCoarseC,data=et)
+#Latitude, Longitude, Forest, Impervious, Agriculture, BasinElevationM, ReachSlopePCT, TotDASqKM, WetlandOrWater, SurficialCoarseC
+
+if(makePlots) {
+
+  #Makes barcode looking plot of data records:
+  #-------------------------------------------
+  gTile <- 
+  ggplot(siteData,aes(site,year,z=any(c(!is.na(springBP),!is.na(summerBP),!is.na(fallBP)))))+
+    scale_x_discrete('Site')+
+    scale_y_continuous('Year')+
+    theme_bw(base_size=20) + 
+      theme(axis.text.x = element_blank())+
+    geom_tile()
+  
+  ggsave( file=paste0(graphsDir, sourceList, '/gTile.png'), plot=gTile, dpi=dpiIn , width=8,height=5, units='in' )
+  
+  #Colors by number of observations?
+  #---------------------------------
+  gTileHeat <- 
+  ggplot(siteData,aes(site,year,z=count))+
+    geom_tile(aes(fill=count))+
+    scale_x_discrete('Site')+
+    scale_y_continuous('Year')+ 
+    theme(axis.text.x = element_blank())
+  
+  ggsave( file=paste0(graphsDir, sourceList,'/gTileHeat.png'), plot=gTileHeat, dpi=dpiIn , width=8,height=5, units='in' )
+
+}
+
+```
+
+
+Models for breakpoints
+----------------------
+When adding new models:
+   1) Follow the structure of previously defined models and name it: "bpmX"
+   2) Assign the description of the model and name it: "bpdX"
+   3) Add new models to the model lists ("bdModels" and "bpModelsDescriptions")
+
+```{r regression bp~+...}
+#This section models the breakpoints as a function of fixed covariates.
+
+#=================================================================================================================
+#                                          Define the structure of the breakpoint models
+#=================================================================================================================
+
+#Breakpoint Model 1:
+#-------------------
+bpd1 <- 'No interactions'
+bpm1 <- '~LatitudeS + LongitudeS + ForestS + AgricultureLS +  BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS +(1|year)'
+
+#Breakpoint Model 2:
+#-------------------
+bpd2 <- 'Full interactions'
+bpm2 <-  '~ ( LatitudeS + LongitudeS + ForestS + AgricultureLS + BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS )^2 + (1|year)'
+
+#Breakpoint Model 3: 
+#-------------------
+bpd3 <- 'Full interactions. Impoundments added.'
+bpm3 <-  '~ ( LatitudeS + LongitudeS + ForestS + AgricultureLS + BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS + ImpoundmentsOpenSqKMLS )^2 + (1|year)'
+
+# List all of the models for reference later:
+bpModels <- list(bpm1, bpm2, bpm3)
+bpModelsDescriptions <- list(bpd1, bpd2, bpd3)
+
+#=================================================================================================================
+#                                               Breakpoint Models
+#=================================================================================================================
+
+bp1mods <- list()
+bp2mods <- list()
+bp3mods <- list()
+
+for ( i in 1:length(bpModels)){
+  
+  # Breakpoint Models
+  bp1mods[[i]] <- lmer(as.formula(paste('springBP', bpModels[[i]])), data=siteData)
+  bp2mods[[i]] <- lmer(as.formula(paste('summerBP', bpModels[[i]])), data=siteData)
+  bp3mods[[i]] <- lmer(as.formula(paste('fallBP'  , bpModels[[i]])), data=siteData)
+  
+  # Breakpoint Model AICs
+  spr <- data.frame(extractAIC(bp1mods[[i]])[1], extractAIC(bp1mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(spr) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { sprBPModelMetrics <- spr} else ( sprBPModelMetrics <- rbind(sprBPModelMetrics, spr))
+
+  smr <- data.frame(extractAIC(bp2mods[[i]])[1], extractAIC(bp2mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(smr) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { smrBPModelMetrics <- smr} else ( smrBPModelMetrics <- rbind(smrBPModelMetrics, smr))
+
+  fal <- data.frame(extractAIC(bp3mods[[i]])[1], extractAIC(bp3mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(fal) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { falBPModelMetrics <- fal} else ( falBPModelMetrics <- rbind(falBPModelMetrics, fal)) 
+}
+
+sprBPModelMetrics
+smrBPModelMetrics
+falBPModelMetrics
+
+#Checked "AIC" vs "extractAIC" on these models and they give the same values.
+```
+
+```{r Choose models to use and predict breakpoints}
+
+bpModelNum <- 3
+
+finalModBP1 <- bp1mods[[bpModelNum]]
+finalModBP2 <- bp2mods[[bpModelNum]]
+finalModBP3 <- bp3mods[[bpModelNum]]
+
+# not sure why need this [allow.new.levels=T] but throws an error otherwise
+#may be because year is in the df
+
+#BP1
+siteData$bp1Pred <- predict(finalModBP1,newdata=siteData,allow.new.levels=T)
+siteData$bp1PredAvgYear <- predict(finalModBP1,newdata=siteData,REform=NA)
+
+#BP2
+siteData$bp2Pred <- predict(finalModBP2,newdata=siteData,allow.new.levels=T)
+siteData$bp2PredAvgYear <- predict(finalModBP2,newdata=siteData,REform=NA)
+
+#BP3
+siteData$bp3Pred <- predict(finalModBP3,newdata=siteData,allow.new.levels=T)
+siteData$bp3PredAvgYear <- predict(finalModBP3,newdata=siteData,REform=NA)
+
+#Synchronized Range
+siteData$bp1bp3 <- siteData$bp3Pred - siteData$bp1Pred
+siteData$bp1bp3AvgYear <- siteData$bp3PredAvgYear - siteData$bp1PredAvgYear
+
+save(siteData,file=paste0(dataOutDir, sourceList,'/siteDataWBPs_', sourceList, '.RData'))
+```
+
+```{r Predicted BP graphs}
+
+if ( makePlots ) {
+
+  #Predicted vs observed spring BP:
+  #--------------------------------
+  gObsPredBP1 <- 
+  ggplot(siteData[siteData$springBP>25,], aes(bp1Pred,springBP))+
+    geom_point(aes(color = agency))+
+    geom_abline(intercept=0,slope=1)+
+    scale_x_continuous("Predicted spring breakpoint")+
+    scale_y_continuous("Observed spring breakpoint")+
+    theme_bw(base_size=20)
+  
+  ggsave( file=paste0(graphsDir, sourceList,'/gObsPredBP1_.png'), plot=gObsPredBP1, dpi=dpiIn , width=8,height=5, units='in' )
+  
+  #Predicted vs observed summer BP:
+  #--------------------------------
+  #need to look into 2008, low observed values
+  gObsPredBP2 <- 
+  ggplot(siteData[siteData$summerBP>180&siteData$summerBP<240&siteData$year!=2008,], aes(bp2Pred,summerBP))+
+    geom_point()+
+    geom_abline(intercept=0,slope=1)+
+    scale_x_continuous("Predicted summer breakpoint")+
+    scale_y_continuous("Observed summer breakpoint")+
+    theme_bw(base_size=20) 
+  
+  ggsave( file=paste0(graphsDir, sourceList,'/gObsPredBP2_.png'), plot=gObsPredBP2, dpi=dpiIn , width=8,height=5, units='in' )
+  
+  #Predicted vs observed fall BP:
+  #------------------------------
+  gObsPredBP3 <- 
+  ggplot(siteData, aes(bp3Pred,fallBP))+
+    geom_point()+
+    geom_abline(intercept=0,slope=1)+
+    scale_x_continuous("Predicted fall breakpoint")+
+    scale_y_continuous("Observed fall breakpoint")+
+    theme_bw(base_size=20)#+facet_wrap(~year) 
+  
+  ggsave( file=paste0(graphsDir, sourceList,'/gObsPredBP3_.png'), plot=gObsPredBP3, dpi=dpiIn , width=8,height=5, units='in' )
+
+}
+```
+
+
+
+
+
+
+

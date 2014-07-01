@@ -1,0 +1,421 @@
+# this file is for multiple sites, also works for a single site
+
+# use of max vs min airTemp in addition to mean air temp
+
+```{r load libraries}
+rm(list=ls())
+
+library(ggplot2)
+library(GGally)
+library(gridExtra)
+library(reshape2)
+library(mgcv)
+library(nlme)
+library(plyr)
+library(segmented)
+library(zoo)
+library(ggmap)
+library(pls)
+library(MASS)
+library(lme4)
+library(DataCombine) # for the slide function
+
+#baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'  
+# Kyle
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
+#baseDir <- 'D:/GitHub/projects/temperatureProject/'                                   # Ben
+
+dataInDir <- paste0(baseDir, 'dataIn/')
+dataOutDir <- paste0(baseDir, 'dataOut/')
+graphsDir <- paste0(baseDir, 'graphs/')
+
+source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
+setwd(baseDir)
+```
+
+Which agencies do you want to pull data from?
+```{r Choose data source}
+
+#Northeast
+CTDEP  <- T
+MAFW   <- T
+MAUSGS <- T
+NHFG   <- T
+NHDES  <- T
+USFS   <- T
+VTFWS  <- T
+MEDMR  <- T
+
+#Montana
+MTUSGSYellowstone <- F
+MTUSGSGlacier <- F
+
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier)
+sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS', 'VTFWS',  'MTUSGSYellowstone', 'MTUSGSGlacier')
+  
+dataSource <- sourceNames[sourceChoice == T]
+
+sourceList <- paste0(paste0(dataSource, collapse = '_'), '_', Sys.Date())
+
+#setwd(paste0(baseDir, 'GitHub/projects/temperatureProject/'))
+
+```
+
+```{r rerun or load previous?}
+
+reRunBP <- T
+
+# Will need to specify date of creation for this to work:
+if( !reRunBP ) {
+  load(file=paste(dataOutDir, sourceList,'/', 'e_', sourceList, '.RData',sep=''))
+  load(file=paste(dataOutDir, sourceList,'/', 'et_', sourceList, '.RData',sep=''))
+}
+
+```
+
+```{r Make graphs?}
+# settings variables
+makeSpringFallGraphs <- F
+indexAbnormalSummerGraphs <- F
+
+#Creates folders for graphs if they don't exist:
+#-----------------------------------------------
+subGraphsDir  <- paste0(graphsDir,  sourceList)
+subDataOutDir <- paste0(dataOutDir, sourceList)
+
+if (!file.exists(subGraphsDir)){
+  dir.create(file.path(paste0(subGraphsDir)))
+  dir.create(file.path(paste0(subGraphsDir, '/summerBP')))
+  dir.create(file.path(paste0(subGraphsDir, '/springFallBP')))
+  dir.create(file.path(paste0(subGraphsDir, '/problemSites')))
+}
+  
+if (!file.exists(subDataOutDir)){ 
+  dir.create(file.path(paste0(subDataOutDir)))
+}
+
+```
+
+```{r Load data}
+ if ( reRunBP ){
+  
+  setwd(dataInDir)
+
+  for ( i in 1:length(dataSource)){
+    load(paste0(dataSource[i], '/streamTempData_', dataSource[i], '.RData'))  #masterData
+    if ( i == 1) {e <- masterData} else ( e <- rbind(e, masterData))
+    rm(masterData)
+    
+    load(paste0(dataSource[i], '/covariateData_', dataSource[i], '.RData'))  #masterData
+    if ( i == 1) {d <- covariateData} else ( d <- rbind(d, covariateData))
+    rm(covariateData)
+  }
+
+d$site <- as.character(d$site)
+e <- merge(e,d[,c('site', 'StreamOrder', 'HUC_4', 'HUC_8', 'HUC_12' )], by = 'site', all.x = T, sort = F)
+
+# Needed because R confuses factor/character/numeric. 
+e$StreamOrder <- as.character(e$StreamOrder)
+e$HUC_4       <- as.character(e$HUC_4)
+e$HUC_8       <- as.character(e$HUC_8)
+e$HUC_12      <- as.character(e$HUC_12)
+}
+```
+
+###############################################
+# format for input file
+# > str(e)
+#'data.frame':   622507 obs. of  10 variables:
+# $ site     : chr  "CTDEP_1" "CTDEP_1" "CTDEP_1" "CTDEP_1" ...
+# $ year     : num  2008 2008 2008 2008 2008 ...
+# $ dOY      : num  1 10 100 101 102 103 104 105 106 107 ...
+# $ date     : Date, format: "2008-01-01" "2008-01-10" ...
+# $ AgencyID : Factor w/ 1479 levels "1","1008","101",..: 1 1 1 1 1 1 1 1 1 1 ...
+# $ agency   : chr  "CTDEP" "CTDEP" "CTDEP" "CTDEP" ...
+# $ temp     : num  NA NA NA NA NA ...
+# $ airTemp  : num  2.25 7.25 8 13.5 12.75 ...
+# $ Latitude : num  41.2 41.2 41.2 41.2 41.2 ...
+# $ Longitude: num  -73.3 -73.3 -73.3 -73.3 -73.3 ...
+##############################################
+
+# need to make sure that dOY is consecutive within a year_site combo, otherwise the slide function will line up non-consecutive dOYs
+# If a df doesn't have consec dOY could use functions in zoo or do the indexing explicitly
+
+```{r Data prep}
+
+siteList <- unique(e$site)
+
+#==============================================================================================
+# This is the key metric for estimating the synchrony between air and water temp 
+e$tempIndex <- (e$temp-e$airTemp)/(e$temp + 0.00000001) # add small # to avoid Inf
+#==============================================================================================
+
+# fill in missing dOY so sequence calcs (like moving mean, slope etc) 
+
+# lag by group
+e <- e[order(e$site,e$year,e$dOY),]
+
+#For checking the order of e:
+#----------------------------
+e$count <- 1:length(e$year)
+
+#Get the slope of the air/stream temperature relationship:
+#---------------------------------------------------------
+e$siteYear <- paste(e$site,e$year,sep='_')
+e <- slide(e, Var = "temp", GroupVar = "siteYear", slideBy = +1)
+e <- slide(e, Var = "airTemp", GroupVar = "siteYear", slideBy = +1)
+
+e$rise <- e$temp1 - e$temp
+e$run  <- e$airTemp1 - e$airTemp
+e$slope <- e$rise / e$run
+e$length <- sqrt(e$rise^2 + e$run^2)
+e$angle <- atan(e$rise/e$run) * 180/pi # need to check radian units...
+
+# for dOY changes
+e$waterDelta <-    e$temp1 -    e$temp
+e$airDelta   <- e$airTemp1 - e$airTemp
+
+e <- e[order(e$count),]
+
+```
+
+```{r moving mean}
+#===============================================================================
+#Get moving mean and SD of temp index for each site and put into the data frame:
+#===============================================================================
+window <- 10 # frame sizefor moving mean, which is centered by default
+
+nSites <- length(siteList)
+siteYearCombos <- unique(e[,c('site','year')])
+#siteYearCombos$site  <- factor(siteYearCombos$site)
+
+e$movingMean <- NA
+e$movingSD <- NA
+
+for (i in 1:nrow(siteYearCombos)){
+
+  print(c(i,as.character(siteYearCombos$site[i]),siteYearCombos$year[i],i/nrow(siteYearCombos)))
+  
+  currSite <- which(e$site == as.character(siteYearCombos$site[i]) & e$year == siteYearCombos$year[i] )
+
+  #Need this so sites with very short records don't crash the loop.
+  if(length(currSite) >= window){currMean <-  rollapply(e$tempIndex[currSite], width=window, fill=NA, mean)} else(currMean <- NA)
+  if(length(currSite) >= window){currSD <-    rollapply(e$tempIndex[currSite], width=window, fill=NA, sd)}   else(currSD <- NA)
+  
+  e$movingMean[currSite] <- currMean
+  e$movingSD  [currSite] <- currSD
+}
+
+e$meanSDDiff <- e$movingSD - e$movingMean
+
+# just to make sure the merge doens't screw up order
+e <- e[order(e$count),]
+
+# look at some raw data
+#ggplot( e[e$site == e$site[2] ,], aes(dOY,temp) ) + geom_point() + geom_point(aes(dOY,airTemp),color='red') + facet_grid(site~year)
+#table( e$year,e$site,is.na( e$temp ) )
+```
+
+
+```{r Create the breaks dataframe}
+
+breaks <- data.frame(array(NA,c(nrow(siteYearCombos),8)))
+names(breaks) <- c('site','year', 'HUC_8', 'springBP','summerBP','fallBP','quantileLo','quantileHi')
+breaks$fallBPComplete <- FALSE
+breaks$springBPComplete <- FALSE
+breaks$springOrFallBPComplete <- FALSE
+breaks$summerBPComplete <- FALSE
+
+breaks$quantileLo <- NA
+breaks$quantileHi <- NA
+
+#Define breakpoint time period and range for tempIndex
+beginningDayForCI <- 125
+endingDayForCI <- 275
+loCI <- 0.001
+hiCI <- 0.999
+
+for ( i in 1:nrow(siteYearCombos)){
+  print(i)
+  breaks$year[i]  <- as.numeric  (siteYearCombos$year[i])
+  breaks$site[i]  <- as.character(siteYearCombos$site[i]) #would like this to stay a factor, but it ends up as numeric in 'breaks'. not sure why
+  breaks$HUC_8[i] <- as.character(d$HUC_8[which(d$site == breaks$site[i])])
+    
+  tmp <- e[e$site == siteYearCombos$site[i] & e$year  %in% siteYearCombos$year[i] & e$dOY %in% beginningDayForCI:endingDayForCI,'tempIndex']
+  if (any(!is.na(tmp))){
+    TIQ <- quantile(tmp, probs=c(loCI,0.5,hiCI),na.rm=T)
+    #  movingSDQ <- quantile(e[e$site == siteList[j] & e$year  %in% year & e$dOY %in% beginningDayForCI:endingDayForCI, 'movingSD'], probs=c(0.005,0.5,0.995),na.rm=T)
+    
+    breaks$quantileLo[i] <- TIQ[1]
+    breaks$quantileHi[i] <- TIQ[3]
+  }
+}  
+
+```
+
+
+```{r Spring/fall bp}
+
+#===================================================================================
+#Use runs analysis of the movingMean to define spring and fall breakpoints:
+#===================================================================================
+
+minCompleteDOYBP1 <- 15
+maxCompleteDOYBP1 <- 175
+numForCompleteBP1 <- round( ( maxCompleteDOYBP1-minCompleteDOYBP1 ) * 0.9 )
+minCompleteDOYBP3 <- 225
+maxCompleteDOYBP3 <- 350
+numForCompleteBP3 <- round( ( maxCompleteDOYBP3-minCompleteDOYBP3 ) * 0.9 )
+
+#Number of days in a row that need to be within the CIs to get assigned synchronised:
+#numForward <- 14 + 1
+#numForward <- 7  + 0
+numForwardSpring <- 10 + 0
+numForwardFall   <- 16 + 0
+
+for (j in 1:nSites){
+  
+  curSite <- which(e$site == siteList[j])
+	e1 <- e[curSite,]
+
+	e3Spring <- e1[ e1$dOY >= minCompleteDOYBP1 & e1$dOY <= maxCompleteDOYBP1, ]
+	
+	completeYearsSpring <- NULL #empty out from previous run
+  
+  if ( !empty( e3Spring ) ) {  #in case e3Spring is empty - avoids error
+	  completeSpring <- as.data.frame( table( e3Spring$year,is.na( e3Spring$temp ) ) )
+	  incompleteYearsSpring <- as.numeric(as.character(completeSpring$Var1[completeSpring$Var2 == 'FALSE' & completeSpring$Freq <  numForCompleteBP1]))
+	  completeYearsSpring <-   as.numeric(as.character(completeSpring$Var1[completeSpring$Var2 == 'FALSE' & completeSpring$Freq >= numForCompleteBP1]))
+  }
+  
+	e3Fall <- e1[ e1$dOY >= minCompleteDOYBP3 & e1$dOY <= maxCompleteDOYBP3, ]
+	
+  completeYearsFall <- NULL
+	
+	if ( !empty( e3Fall ) ) {
+	  completeFall <- as.data.frame( table( e3Fall$year,is.na( e3Fall$temp ) ) )
+	  incompleteYearsFall <- as.numeric(as.character(completeFall$Var1[completeFall$Var2 == 'FALSE' & completeFall$Freq <  numForCompleteBP3]))
+	  completeYearsFall <-   as.numeric(as.character(completeFall$Var1[completeFall$Var2 == 'FALSE' & completeFall$Freq >= numForCompleteBP3]))
+	} 
+  
+	completeYearsSpringOrFall <- unique(c(completeYearsSpring,completeYearsFall))
+	#quantiles <- data.frame(year=c(min(e1$year):max(e1$year)))
+	#quantiles$lo <- NA
+	#quantiles$hi <- NA 
+	
+	for (year in completeYearsSpringOrFall){ 
+
+	  breaks$springOrFallBPComplete[ breaks$year == year & breaks$site == siteList[j] ] <- TRUE
+	  print(c('BP 1 and 3',j,as.character(siteList[j]),year))
+ 
+    lo <- breaks$quantileLo[breaks$year == year & breaks$site == siteList[j]] 
+    hi <- breaks$quantileHi[breaks$year == year & breaks$site == siteList[j]] 
+    
+
+		runsSpring <- data.frame(array(NA,c(1,numForwardSpring)))
+  	runsFall <- data.frame(array(NA,c(1,numForwardFall)))
+
+    eYear <- e1[e1$year == year, ] 
+
+		if(year %in% completeYearsSpring){
+			
+			#out <- segmented( lm(temp~dOY, data=e1[e1$year == year,]), seg.Z=~dOY, psi=list(dOY=c(100,200)))
+			#tryCatch({out <- segmented( lm(temp~dOY, data=e1[e1$year == year,]), seg.Z=~dOY, psi=list(dOY=c(100,200)))},error=function(e){cat("ERROR :",conditionMessage(e), "\n")})
+
+			# time forward until approx breakpoint ascending/descending water temp (in 'breaks')
+			for (i in 1:(200)){ #-window*winFactor )){
+				for (ii in 2:numForwardSpring ){
+          
+          if( (i+ii-2) %in% eYear$dOY ) {   # amke sure that the dOY is in the looping variable      
+			  	  runsSpring[ i,ii ] <- 1*((eYear$movingMean[ eYear$dOY == (i+ii-2) ] >= lo) & (eYear$movingMean[ eYear$dOY == (i+ii-2) ] <= hi))
+          } else
+            runsSpring[ i,ii ] <- 1  
+          
+				}
+				runsSpring[ i,1 ] <- prod( runsSpring[ i, 2:numForwardSpring ] )
+			}
+			breaks$springBP[ breaks$year == year & breaks$site == siteList[j] ] <- min(which(runsSpring[,1] == 1))
+			breaks$springBPComplete[ breaks$year == year & breaks$site == siteList[j] ] <- TRUE
+		} #completeYearsSpring loop
+      
+	 if(year %in% completeYearsFall){
+			# Make this not arbitrary
+			# time backward until approx breakpoint ascending/descending water temp (in 'breaks')
+	   stopLoop <- max( c( minCompleteDOYBP3,min(eYear$dOY)+numForwardFall + 1 ) )  # to keep from going past lower limit if dOY
+			for (i in  max(eYear$dOY):stopLoop){
+				for (ii in 2:numForwardFall ){
+          
+				  if( (i-ii+2) %in% eYear$dOY ) { 
+					  runsFall[ i,ii ] <- 1*((eYear$movingMean[ eYear$dOY == (i-ii+2) ] >= lo) & (eYear$movingMean[ eYear$dOY == (i-ii+2) ] <= hi))
+				  } else
+				    runsFall[ i,ii ] <- 1 
+				}
+				runsFall[ i,1 ] <- prod( runsFall[ i, 2:numForwardFall ] )
+			}
+			breaks$fallBP[ breaks$year == year & breaks$site == siteList[j] ] <- max(which(runsFall[,1] == 1))
+			breaks$fallBPComplete[ breaks$year == year & breaks$site == siteList[j] ] <- TRUE
+		}	#completeYearsFall loop
+			
+	} #completeYearsSpringOrFall loop
+} #site loop
+
+# add in means for missing BP. use the xBPWMean below to constrain the date range for estimating BP 2 
+
+#Add watershed or some spatial grouping to mean BPs.
+# adapt to do things by BP & HUC 8
+
+# Get the mean BPs for each site:
+meanBP <- ddply( breaks, .(site), summarise, meanSpringBP = mean(springBP,na.rm=T), meanFallBP = mean(fallBP,na.rm=T) )
+breaks$meanSpringBP <- NULL; breaks$meanFallBP <- NULL # in case we've merged before
+
+breaks <- merge( x=breaks, y= meanBP, all.x=T, by=c('site') )
+
+# Get the mean BPs for each HUC:
+#  Currently means over all site/year combos. Other option would be to average all site means.
+meanBPHUC8 <- ddply( breaks, .(HUC_8), summarise, meanSpringBPHUC8 = mean(springBP,na.rm=T), meanFallBPHUC8 = mean(fallBP,na.rm=T) )
+breaks$meanSpringBPHUC8 <- NULL; breaks$meanFallBPHUC8 <- NULL # in case we've merged before
+
+breaks <- merge( x=breaks, y= meanBPHUC8, all.x=T, by=c('HUC_8') )
+
+#Define the averages of the calculated breakpoints.
+meanSpringBP <- mean(breaks$meanSpringBP[is.finite(breaks$meanSpringBP)])
+meanFallBP   <- mean(breaks$meanFallBP[is.finite(breaks$meanFallBP)])
+
+#If the breakpoint doesn't exist, replace it with the HUC8 mean. (Same if it's been calculated as NaN.)
+breaks$springBPWMean <- ifelse( is.na(breaks$springBP), breaks$meanSpringBPHUC8, breaks$springBP )
+breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), breaks$meanSpringBPHUC8, breaks$springBPWMean )
+breaks$fallBPWMean   <- ifelse( is.na(breaks$fallBP), breaks$meanFallBPHUC8, breaks$fallBP )
+breaks$fallBPWMean   <- ifelse( !is.finite(breaks$fallBPWMean), breaks$meanFallBPHUC8, breaks$fallBPWMean )
+
+#If the breakpoint still doesn't exist, replace it with the overall mean. (Same if it's been calculated as NaN.)
+breaks$springBPWMean <- ifelse( is.na(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
+breaks$springBPWMean <- ifelse( !is.finite(breaks$springBPWMean), meanSpringBP, breaks$springBPWMean )
+breaks$fallBPWMean <- ifelse( is.na(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
+breaks$fallBPWMean <- ifelse( !is.finite(breaks$fallBPWMean), meanFallBP, breaks$fallBPWMean )
+
+# can have empty breakPoints if don't calculate a mean across years for each site in the ddply above
+# i.e. only data for one year in a site or no years have data before the spring cutoff or after the fall cutoff
+# in this case, just fill in the cutoffs, so the summer breakPoint can be calculated
+breaks$springBPWMean[is.na(breaks$springBPWMean )] <- minCompleteDOYBP1
+breaks$fallBPWMean  [is.na(breaks$fallBPWMean   )] <- maxCompleteDOYBP3
+```
+
+```{r merge breaks}
+#----------------------------------------------------------------
+#Merge the breakpoints and quantiles with the existing dataframe:
+#----------------------------------------------------------------
+#et <- merge( x=e, y=breaks, by.x=c('year','site'),by.y=c('year','site'),all.x=T)
+et <- merge( x=e, y=breaks, by=c('year','site'),all.x=T)
+
+# need to sort for plotting pred
+segDF <- segDF[order(segDF$site,segDF$year,segDF$dOY),]
+
+```
+
+
+```{r save e}
+  save(e,                       file=paste0(dataOutDir, sourceList, '/', 'e_' , sourceList, '.RData'))
+  save(et, breaks, file=paste0(dataOutDir, sourceList, '/', 'et_', sourceList, '.RData'))
+
+```
+

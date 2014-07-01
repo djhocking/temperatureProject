@@ -20,8 +20,9 @@ library(MASS)
 library(lme4)
 library(DataCombine) # for the slide function
 
-baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'                           # Kyle
-#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
+#baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'  
+# Kyle
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
 #baseDir <- 'D:/GitHub/projects/temperatureProject/'                                   # Ben
 
 dataInDir <- paste0(baseDir, 'dataIn/')
@@ -36,13 +37,13 @@ Which agencies do you want to pull data from?
 ```{r Choose data source}
 
 #Northeast
-CTDEP  <- T
-MAFW   <- T
+CTDEP  <- F
+MAFW   <- F
 MAUSGS <- T
-NHFG   <- T
-NHDES  <- T
-USFS   <- T
-VTFWS  <- T
+NHFG   <- F
+NHDES  <- F
+USFS   <- F
+VTFWS  <- F
 MEDMR  <- F
 
 #Montana
@@ -74,8 +75,8 @@ if( !reRunBP ) {
 
 ```{r Make graphs?}
 # settings variables
-makeSpringFallGraphs <- T
-indexAbnormalSummerGraphs <- T
+makeSpringFallGraphs <- F
+indexAbnormalSummerGraphs <- F
 
 #Creates folders for graphs if they don't exist:
 #-----------------------------------------------
