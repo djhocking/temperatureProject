@@ -1,0 +1,101 @@
+This script replaces covariate data for a site after visual inspection of site location resulting in changes to assigned NHD FeatureID or whether local or upstream data is indexed.
+
+Notes:
+
+In the "siteChanges_(agency)" files, a 1 = "yes" and a 0 = "no".
+ - In the "correctFeatureID" column a 1 indicates to use the same featureID as before while any changes will be indicated by listing the new featureID. 
+ - In the "localCatchment" column a 1 indicates to use the local values for the catchment while a 1 indicates to use the upstream values for the catchment.
+ - There is also a column for cases of duplicate locations, 
+ 
+- The impoundment related data cannot be indexed for local stats because of how the original data is processed.                For now these get NA values. This could potentially be changed to zero values if we assume there are no impoundments in small (single catchment) headwaters.
+
+```{r Read in data}
+rm(list=ls())
+
+# Define agency to edit
+agency <- 'MADEP'
+
+setwd(paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', agency))
+
+# Read in the CSV that lists all sites and indicates the ones to change
+s <- read.csv(paste0('siteChanges_', agency, '.csv'))
+s$site <- as.character(s$site)
+
+# Select sites that get changed
+s1 <- s[which(s$correctFeatureID > 1 | s$localCatchment > 0 ),]
+
+# Edit the "correctFeatureID" column to contain the correct FEATUREIDs (both changes and ones that will stay the same).
+s1$correctFeatureID[s1$correctFeatureID == 1] <- s1$currentFeatureID[s1$correctFeatureID == 1]
+
+# Load the file to be edited
+load(paste0('covariateData_', agency, '.RData'))
+d <- covariateData
+d$site <- as.character(d$site)
+
+# Back-up the file. (This can be deleted later)
+save(covariateData, file = paste0('covariateData_', agency, '_BACKUP.RData'))
+
+# Load the most recent master list of covariates
+load('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/NENY_CovariateData_2014-06-12.RData')
+```
+
+```{r Replace columns}
+# Don't want to replace Lat/Lon of the site with Lat/Lon of catchment centroid, so remove these from the master list
+up  <- UpstreamStats[, - which(names(UpstreamStats) %in% c('Latitude', 'Longitude'))]
+loc <- LocalStats   [, - which(names(LocalStats) %in% c('Latitude', 'Longitude'))]
+
+# Remove covariate data for sites that will be replaced
+d1 <- d[!(d$site %in% s1$site), ]
+
+#Replace sites that need new Upstream covariate data:
+#====================================================
+
+# Sites that get upstream data:
+#------------------------------
+nU <- s1[s1$localCatchment == 0, c('site', 'correctFeatureID')]
+colnames(nU) <- c('site', 'FEATUREID')
+nU1 <- merge(nU, d[,c('site', 'Latitude', 'Longitude')], by = 'site', all.x = T, sort = F)
+
+# Merge in new covariate data
+nU2 <- merge(nU1, up, by = 'FEATUREID', all.x = T, sort = F)
+
+# Remove unused columns
+nU3 <- nU2[,names(nU2) %in% names(d1)]
+
+
+# Sites that get local data:
+#---------------------------
+nL <- s1[s1$localCatchment == 1, c('site', 'correctFeatureID')]
+colnames(nL) <- c('site', 'FEATUREID')
+nL1 <- merge(nL, d[,c('site', 'Latitude', 'Longitude')], by = 'site', all.x = T, sort = F)
+
+# Merge in new covariate data
+nL2 <- merge(nL1, loc, by = 'FEATUREID', all.x = T, sort = F)
+
+# Remove unused columns
+nL3 <- nL2[,names(nL2) %in% names(d1)]
+
+# Replace local stats for impoundments with NAs because these values are not applicable to the local catchments (they are only used for upstream calculation)
+
+impoundmentLayers <- c('ImpoundmentsOpenSqKM', 'OffChannelOpenSqKM', 
+                       'WetlandsOpenSqKM', 'ImpoundmentsAllSqKM', 
+                       'OffChannelAllSqKM', 'WetlandsAllSqKM', 
+                       'PercentImpoundedOpen', 'PercentImpoundedAll')
+
+nL3[, names(nL3) %in% impoundmentLayers] <- NA
+
+# Join new data together
+newData <- rbind(nU3, nL3)
+
+# Add a column so we know which sites have had their data changed
+newData$locationChange <- 'Y'
+d1$locationChange <- 'N'
+
+# Join new to existing keeper data
+covariateData <- rbind(d1, newData)
+```
+
+```{r Save new dataframe}
+# Save the new dataframe
+save(covariateData, file = paste0('covariateData_', agency, '.RData'))
+```

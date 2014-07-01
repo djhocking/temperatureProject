@@ -1,0 +1,9 @@
+Here's an example of the basic temperature data format that would be best. A few notes about the data:
+
+1) Temperatures are daily means, typically reported in degrees Celsius. We can also use min and max in separate columns if available. (If the time series is not daily (e.g. hourly or 15-minute) we can still use it.)
+2) If there is a gap in the record, data are entered as "NA" as opposed to being left out of the record entirely (see 5/1708 – 5/21/08 in example file). If the gap covers an entire calendar year it can be left out.
+3) Sites with multiple visits have a clear and unique identifier other than Lat/Lon.
+4) Overlapping records at the same site are specified.
+5) If air temperature records are available, please include in a new column titled "airTemp".
+
+If the data are not in this format, it would be helpful to know about any deviations or abnormalities.

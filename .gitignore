@@ -1,7 +1,5 @@
 graphs/*
 !graphs/shared/
-maps/
-UMassWork/
 DaymetClimateData/
 modelPredictionTimeseries/
 .Rproj.user
@@ -23,3 +21,9 @@ dataIn/nlme.RData
 gamm2.RData
 localData/
 presentations/
+
+# Kyle.ignore
+maps/
+UMassWork/
+rawDataWork/
+

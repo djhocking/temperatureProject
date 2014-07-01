@@ -22,7 +22,7 @@ library(chron)
 library(ncdf)
 
 #Load the function that indexes daymet tiles based on a lat/lon point:
-source("C:/KPONEIL/USGS/Scripts/R/StreamTemp/indexDaymetTileByLatLon.R")
+source("C:/KPONEIL/GitHub/projects/temperatureProject/code/functions/indexDaymetTileByLatLon.R")
 ```
 
 ```{r Read in Spatial Data and Define Spatial Range, Time Period, etc.}
@@ -85,7 +85,7 @@ for (k in 1:length(Tiles)){
       #ifelse ( i == 1, x <- -9999, x <- Sites$Tile[i-1])
       if ( i == 1) {
           
-        NCDF <- open.ncdf(paste0("C:/KPONEIL/SourceData/Projected/DAYMET/Daily/", Tiles[k], "_", year,"/", Variables[j], ".nc"))    #netcdf
+        NCDF <- open.ncdf(paste0("F:/KPONEIL/SourceData/climate/DAYMET/unzipped/Daily/", Tiles[k], "_", year,"/", Variables[j], ".nc"))    #netcdf
         #Dimension limits of each of the variables we'll use:
         #----------------------------------------------------
         start1 = c(1,1)
@@ -141,7 +141,7 @@ for (k in 1:length(Tiles)){
   
   FullRecord$airTemp <- (FullRecord$tmin + FullRecord$tmax)/2
   
-  save(FullRecord, file = paste0("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/DaymetClimateData/LocalValues/NHD_DaymetTile_", Tiles[k],"_", year, ".RData"))
+  save(FullRecord, file = paste0("C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/DaymetClimateData/LocalValues/NHD_DaymetTile_", Tiles[k],"_", year, ".RData"))
   rm(all.sites, FullRecord, temp.var, CurSites, LCur)
   
 }
@@ -149,6 +149,11 @@ end.time   <- proc.time()[3]
 print(paste0((end.time-start.time)/3600, " hours"))
 
 ```
+
+
+
+
+
 
 ```{r Check NA count:}
 
@@ -158,63 +163,4 @@ length(which(is.na(FullRecord)))/(nrow(FullRecord)*6)
 
 ```
 
-
-
-
-```{r Upstream Precipitation Values}
-
-
-
-
-
-
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{r Define section name:}
-
-
-NEday2010 <- merge(LocalRecord, UpstreamRecord, by = c("site", "year", "dOY"), all.x = T,  sort = F))
-NEday2010$airTemp <- (NEday2010$tmin + NEday2010$tmax)/2
-
-
-names(NEday2010)[]
-
-
-save(NEday2010, file = "C:/KPONEIL/USGS/Stream Temperature/data/temperature/NEdaymet2010.RData")
-
-
-
-UpRes <- FullRecord[,c(1,2,3,8)]
-
-
-
-load("C:/KPONEIL/USGS/Stream Temperature/data/temperature/fromKyle/BP_Analysis/BP_Analysis/BPA_ClimateData865.RData")
-master.data <- merge(master.data, UpRes, by = c('site', 'year', 'dOY'), all.x = T)
-
-#Check for reasonable NA count. (Don't include stream temperature column.)
-length(which(is.na(master.data[,-7])))
-
-
-
-```
 

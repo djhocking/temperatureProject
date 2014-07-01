@@ -1,0 +1,193 @@
+```{r Load Libraries}
+
+rm(list=ls())
+library(sp)
+library(rgdal)
+library(rgeos)
+library(maptools)
+
+# Enter the agency abbreviation being used:
+dataSource <- 'MADEP'
+
+```
+
+```{r Read-in & prep data}
+
+#NHDPlus Data:
+proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
+Catchments <- readShapePoly ( "C:/KPONEIL/gis/nhdPlusV2/NENY_NHDCatchment.shp", proj4string=CRS(proj4.NHD))
+
+#Site Location Data:
+load(paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/streamTempData_', dataSource, '.RData'))
+
+sitelist<- unique(masterData$site)
+
+for ( i in 1:length(sitelist)){
+  
+  Lat <- unique(masterData$Latitude[which(masterData$site == sitelist[i])])
+  Lon <- unique(masterData$Longitude[which(masterData$site == sitelist[i])])
+  
+  temp <- data.frame(sitelist[i], Lat, Lon)
+  names(temp) <- c('site', 'Latitude', 'Longitude')
+  if ( i ==1) {Sites <- temp} else ( Sites <- rbind(Sites, temp))
+}
+
+#Master covariate data:
+load("C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/NENY_CovariateData_2014-06-12.RData")
+
+# List the covariates to be indexed. (This can be changed to be comprehensive or to be dynamic.)
+fields <- c("FEATUREID", "ReachLengthKM", "Forest", "Herbacious", "Agriculture", "HerbaciousOrAgriculture", "Developed", 
+              "DevelopedNotOpen", "Wetland", "WetlandOrWater", "Water", "UndevelopedForest", "Impervious", "AnnualTmaxC", "AnnualTminC", "WinterPrcpMM", "AnnualPrcpMM", "AtmDepositionNO3", "AtmDepositionSO4", "BasinSlopeDEG", "DrainageClass", "HydrologicGroupA", "HydrologicGroupAB", "HydrologicGroupCD", "HydrologicGroupD4", "HydrologicGroupD1", "SurficialCoarseC", "PercentSandy", "TotDASqKM", "ReachElevationM", "BasinElevationM", "SummerPrcpMM", "ReachSlopePCNT", "BasinSlopePCNT", "JanPrcpMM", "FebPrcpMM", "MarPrcpMM", "AprPrcpMM", "MayPrcpMM", "JunPrcpMM", "JulPrcpMM", "AugPrcpMM", "SepPrcpMM", "OctPrcpMM", "NovPrcpMM", "DecPrcpMM", "CONUSOpenWater", "CONUSWetland", "TNC_DamCount", "ImpoundmentsOpenSqKM", "ImpoundmentsAllSqKM", "WetlandsOpenSqKM", "WetlandsAllSqKM", "PercentImpoundedOpen", "PercentImpoundedAll", "OffChannelOpenSqKM", "OffChannelAllSqKM", "StreamOrder", "HUC4", "HUC8", "HUC12")
+
+SelectUpstreamStats <- UpstreamStats[,names(UpstreamStats) %in% fields]
+```
+
+```{r Index master data}
+
+start.time <- proc.time()[3]
+for ( i in 1:nrow(Sites)){
+  print(i)
+  
+  curSite <- Sites[i,]
+  
+  #Make the site a SpatialPoints object:
+  point <- SpatialPoints(matrix(data=c(curSite$Longitude,curSite$Latitude),ncol=2,byrow=T), proj4string=CRS(proj4.NHD))
+  
+  #Get catchment that contains the point:
+  featureID <- over(point,Catchments)$FEATUREID
+  
+  # Join the site info and the covariate data:
+  tempCovs <- data.frame(curSite, SelectUpstreamStats[SelectUpstreamStats$FEATUREID == featureID, names(SelectUpstreamStats) %in% fields])
+
+  # Store data from each iteration:
+  if ( i == 1 ) { newCovs <- tempCovs} else( newCovs <- rbind(newCovs, tempCovs) )
+
+}
+end.time   <- proc.time()[3]
+print(paste0((end.time-start.time)/3600, " hours"))
+
+
+newCovs$site <- paste(newCovs$site)
+
+```
+
+
+
+```{r Export Data}
+covariateData <- newCovs
+save(covariateData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/covariateData_', dataSource, '.RData'))
+```
+
+
+
+
+
+
+
+
+
+
+```{r function version}
+
+proj4string <- CRS(proj4.NHD)
+
+indexCovariateData <- function(record, masterCovariates, catchmentShapefile, proj4string){
+    
+  sites <- unique(masterData[,c('site', 'Latitude', 'Longitude')])
+
+  for ( i in 1:nrow(sites)){  
+    
+    # Select a site
+    curSite <- sites[i,]
+    
+    #Make the site a SpatialPoints object:
+    point <- SpatialPoints(matrix(data=c(curSite$Longitude,curSite$Latitude),ncol=2,byrow=T), proj4string)
+    
+    #Get catchment that contains the point:
+    featureID <- over(point,catchmentShapefile)$FEATUREID
+    
+    # Join the site info and the covariate data:
+    tempCovs <- data.frame( curSite, SelectUpstreamStats[SelectUpstreamStats$FEATUREID == featureID, names(SelectUpstreamStats) %in% fields])
+    
+    # Store data from each iteration:
+    if ( i == 1 ) { newCovs <- tempCovs} else( newCovs <- rbind(newCovs, tempCovs) )
+    
+    }
+  
+  return(newCovs)
+  
+}
+
+
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+#
+#   IN PROGRESS: Use of parallel processing to in this code.
+#
+
+IndexSites <- function(Site){
+  
+  library(maptools)
+  Latitude <- Locations[which(Locations$Site == Site), 'Latitude' ]
+  Longitude <- Locations[which(Locations$Site == Site), 'Longitude']
+  
+  #Make the site a SpatialPoints object
+  point <- SpatialPoints(matrix(data=c(Longitude,Latitude),ncol=2,byrow=T), proj4string=CRS(proj4.NHD))
+  
+  #get catchment that contains the point
+  featureID <- over(point,Catchments)$FEATUREID
+  
+  stats <- UpstreamStats[UpstreamStats$FEATUREID == featureID,]
+  
+  return(c(as.character(Site), Latitude, Longitude, stats))
+}
+
+
+library(parallel)
+
+values <- Sites
+
+# Number of workers (R processes) to use:
+numWorkers <- 8
+# Set up the 'cluster':
+cl <- makeCluster(numWorkers, type = "PSOCK")
+
+# Load the necessary objects into the cluster:
+clusterExport(cl, c("Sites", "Locations", "Catchments", "UpstreamStats", "proj4.NHD" ))
+#clusterExport(cl, library(maptools))
+
+
+# Execute the function:
+start.time <- proc.time()[3]
+Results    <- parSapply(cl, values, IndexSites)
+end.time   <- proc.time()[3]
+print(paste0((end.time-start.time)/3600, " hours"))
+
+# Shut down cluster:
+stopCluster(cl)
+
+#Reformat to match "LocalStats":
+rownames(Results) <- names(LocalStats)
+UpstreamStats <- t(Results)
+UpstreamStats <- as.data.frame(UpstreamStats)
+
+
+
+
+
+

@@ -50,7 +50,7 @@ Crooked River,MEDMR,MEDMR_5CROOKE14.38,1,0,
 Crooked River,MEDMR,MEDMR_5CROOKE17.10,1,0,
 Crooked River,MEDMR,MEDMR_5CROOKE20.31,1,0,
 Crooked River,MEDMR,MEDMR_5CROOKE3.90,1,0,
-Maine Estuarine and Marine,MEDMR,MEDMR_5ESTUAR0.72,1,0,
+Maine Estuarine and Marine,MEDMR,MEDMR_5ESTUAR0.72,1,0,Coastal
 Fletcher Brook,MEDMR,MEDMR_5FLETCHR7.35,0,0,"Site reads Fletcher Brook, but matches up with Hadley Brook on map. Don't have a good way to change this yet."
 Honeymoon Brook,MEDMR,MEDMR_5HONEYM1.21,1,0,
 Honeymoon Brook,MEDMR,MEDMR_5HONEYM4.35,1,0,
@@ -94,13 +94,13 @@ West Branch Machias River,MEDMR,MEDMR_5WESTBR22.07,1,0,
 West Branch Machias River,MEDMR,MEDMR_5WESTBR22.14,1,0,
 West Branch Machias River,MEDMR,MEDMR_5WESTBR4.35,1,0,
 Beaverdam Stream,MEDMR,MEDMR_6BEAVER2.13,1,0,
-Chase Mill Stream,MEDMR,MEDMR_6CHASEM2.17,2678030,0,The catchment listed is the more realistic measure since the point is on the  upstream edge of a catchment
-Maine Estuarine and Marine,MEDMR,MEDMR_6ESTUAR1.12,1,0,
+Chase Mill Stream,MEDMR,MEDMR_6CHASEM2.17,2678030,0,Coastal. The catchment listed is the more realistic measure since the point is on the  upstream edge of a catchment
+Maine Estuarine and Marine,MEDMR,MEDMR_6ESTUAR1.12,1,0,Coastal
 Harmon Stream,MEDMR,MEDMR_6HARMON0.52,1,0,
-East Machias River,MEDMR,MEDMR_6MAINST0.24,1,0,
-East Machias River,MEDMR,MEDMR_6MAINST0.39,1,0,
-East Machias River,MEDMR,MEDMR_6MAINST0.68,1,0,
-East Machias River,MEDMR,MEDMR_6MAINST0.78,1,0,
+East Machias River,MEDMR,MEDMR_6MAINST0.24,1,0,Coastal
+East Machias River,MEDMR,MEDMR_6MAINST0.39,1,0,Coastal
+East Machias River,MEDMR,MEDMR_6MAINST0.68,1,0,Coastal
+East Machias River,MEDMR,MEDMR_6MAINST0.78,1,0,Coastal
 East Machias River,MEDMR,MEDMR_6MAINST25.79,1,0,
 East Machias River,MEDMR,MEDMR_6MAINST33.75,1,0,
 East Machias River,MEDMR,MEDMR_6MAINST47.78,1,0,
@@ -117,17 +117,17 @@ Cathance Stream,MEDMR,MEDMR_7CATHAN12.65,1,0,
 Cathance Stream,MEDMR,MEDMR_7CATHAN15.61,1,0,
 Cathance Stream,MEDMR,MEDMR_7CATHAN4.48,1,0,
 Dead Stream,MEDMR,MEDMR_7DEADST7.76,1,0,
-Dennys River,MEDMR,MEDMR_7MAINST1.43,1,0,
-Dennys River,MEDMR,MEDMR_7MAINST1.48,1,0,
-Dennys River,MEDMR,MEDMR_7MAINST1.55,1,0,
-Dennys River,MEDMR,MEDMR_7MAINST1.56,1,0,
-Dennys River,MEDMR,MEDMR_7MAINST1.81,1,0,
+Dennys River,MEDMR,MEDMR_7MAINST1.43,1,0,Coastal
+Dennys River,MEDMR,MEDMR_7MAINST1.48,1,0,Coastal
+Dennys River,MEDMR,MEDMR_7MAINST1.55,1,0,Coastal
+Dennys River,MEDMR,MEDMR_7MAINST1.56,1,0,Coastal
+Dennys River,MEDMR,MEDMR_7MAINST1.81,1,0,Coastal
 Dennys River,MEDMR,MEDMR_7MAINST12.54,1,0,
 Dennys River,MEDMR,MEDMR_7MAINST13.38,1,0,
 Dennys River,MEDMR,MEDMR_7MAINST15.07,1,0,
 Dennys River,MEDMR,MEDMR_7MAINST18.28,1,0,
 Dennys River,MEDMR,MEDMR_7MAINST18.99,1,0,
-Dennys River,MEDMR,MEDMR_7MAINST2.10,1,0,
+Dennys River,MEDMR,MEDMR_7MAINST2.10,1,0,Coastal
 Dennys River,MEDMR,MEDMR_7MAINST21.00,1,0,
 Dennys River,MEDMR,MEDMR_7MAINST23.53,1,0,
 Venture Brook,MEDMR,MEDMR_7VENTUR2.40,1,0,
