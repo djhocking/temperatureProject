@@ -169,7 +169,7 @@ par(mfrow = c(1,1))
 library(nlme)
 
 # consider replacing lags with 5 and/or 10 day average airT and total precip. Also need drainage area
-lme1 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~1, site = ~1 ), data = etS)
+system.time(lme1 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~1, site = ~1 ), data = etS)) # 42 seconds
 summary(lme1)
 
 plot(lme1)
@@ -194,7 +194,7 @@ plot(etS1$dOY, fitted(lme1))
 etS1$lme1 <- fitted(lme1)
 ggplot(data=etS1[etS1$year >= 2007, ], aes(dOY, lme1)) + geom_point(aes(dOY, temp)) + geom_line(colour='red') + facet_grid(year ~ site) 
 
-system.time(lme1b <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~1, site = ~airTemp + airTempLagged1 + airTempLagged2 + dOY + I(dOY^2) + I(dOY^3)), data = etS))
+system.time(lme1b <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~dOY + I(dOY^2) + I(dOY^3), site = ~airTemp + airTempLagged1 + airTempLagged2), data = etS))
 summary(lme1b)
 
 # without dOY
@@ -215,6 +215,26 @@ acf(resid(lme2), lag = 1000) # autocorrelation worse without dOY
 plot(etS1$dOY, resid(lme2))
 
 rmse(resid(lme2)) # 1.23
+
+# Add Temporal Autocorrelation
+system.time(lme3 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~dOY + I(dOY^2) + I(dOY^3), site = ~airTemp + airTempLagged1 + airTempLagged2), data = etS, correlation = corCAR1()))
+
+system.time(lme3b <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~dOY + I(dOY^2) + I(dOY^3), site = ~airTemp + airTempLagged1 + airTempLagged2), data = etS, correlation = corCAR1(form = ~1|year)))
+
+system.time(lme3c <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~dOY + I(dOY^2) + I(dOY^3), site = ~airTemp + airTempLagged1 + airTempLagged2), data = etS, correlation = corCAR1(form = list(year = ~ 1, site = ~1))))
+
+# Add spatial autocorrelation
+system.time(lme4 <- lme(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3), random = list(year = ~dOY + I(dOY^2) + I(dOY^3), site = ~airTemp + airTempLagged1 + airTempLagged2), data = etS, correlation = corSpher(form = ~latitude + longitude, nugget = TRUE)))
+
+# Add spatial and temporal autocorrelation (not sure how)
+
+
+########### LME4 ###########
+library(lme4)
+system.time(lmer1b <- lmer(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3) + (dOY + I(dOY^2) + I(dOY^3)|year) + (airTemp + airTempLagged1 + airTempLagged2|site), data = etS))
+
+system.time(lmer2 <- lmer(temp ~ airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + TotDASqKM + Forest +  airTemp*prcp + airTemp*TotDASqKM + airTempLagged2*TotDASqKM + dOY + I(dOY^2) + I(dOY^3) + (dOY + I(dOY^2) + I(dOY^3)|year) + (airTemp + airTempLagged1 + airTempLagged2|site), data = etS))
+
 
 
 #library(gamm4) - better if don't account for correlation structure
