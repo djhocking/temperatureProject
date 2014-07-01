@@ -1,8 +1,5 @@
 graphs/*
 !graphs/shared/
-maps/
-UMassWork/
-rawDataWork/
 DaymetClimateData/
 modelPredictionTimeseries/
 .Rproj.user
@@ -14,3 +11,7 @@ modelPredictionTimeseries/
 *.tiff
 *.tif
 *.eps
+# Kyle.ignore
+maps/
+UMassWork/
+rawDataWork/

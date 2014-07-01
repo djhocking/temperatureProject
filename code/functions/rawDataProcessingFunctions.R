@@ -18,8 +18,9 @@ trimNAsFromRecord <- function(record, columnToCheck){
   
   for ( i in 1:length(sites)){
     
-    curSite <- record[record$site == sites[i],]
+    print(i/length(sites))
     
+    curSite <- record[record$site == sites[i],]
     
     vals <- which(!is.na(curSite[names(curSite) == columnToCheck]))
     

@@ -9,6 +9,10 @@
 
 plotRawTemperatureData <- function(masterData, plotDirectory){
   
+  library(ggplot2)
+  library(reshape2)
+  library(gridExtra)
+  
   # Create a list of sites
   sites <- unique(masterData$site)
   
@@ -64,7 +68,9 @@ plotRawTemperatureData <- function(masterData, plotDirectory){
     gOut <- arrangeGrob( gAirWater, gTimeSeries, ncol=1, main = paste0( 'Site: ', sites[j]))
     
     # Save the plots
-    ggsave(plot=gOut, file=paste(plotDirectory, sites[j],".png",sep=''),dpi=300,width=6,height=8, units='in', scale=2)
+    setwd(plotDirectory)
+    
+    ggsave(plot=gOut, file=paste0(sites[j],'.png'),dpi=300,width=6,height=8, units='in', scale=2)
   }
   
 }
@@ -81,6 +87,8 @@ plotRawTemperatureData <- function(masterData, plotDirectory){
 # It returns a points shapefile of the site locations.
 #=========================================================================================================
 createSiteLocationsShapefile <- function(record, projectionString){
+  
+  library(sp)
   
   siteLocs <- unique(record[,c('site', 'Latitude', 'Longitude', 'agency')])
   
