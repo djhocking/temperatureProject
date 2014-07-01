@@ -37,7 +37,7 @@ if(WB) {
 et$day <- as.numeric(et$date)
 
 if(WB) {
-  et2 <- et[ , c("siteYear", "year", "site", "date", "season", "temp", "airTemp", "airTempLagged1", "airTempLagged2", "dOY", "day", "prcp", "prcpLagged1", "prcpLagged2", "srad", "dayl", "swe")]
+  et2 <- et[ , c("siteYear", "year", "site", "date", "season", "temp", "airTemp", "airTempLagged1", "airTempLagged2", "dOY", "day", , "srad", "dayl", "swe")]
   
   et2$temp[which(et2$temp < 0 & et2$temp > -1)] <- 0
   et2$temp[which(et2$temp <= -1)] <- NA

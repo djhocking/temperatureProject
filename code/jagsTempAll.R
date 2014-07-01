@@ -3,12 +3,12 @@ rm(list=ls())
 library(ggplot2)
 library(nlme)
 
-#setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
-setwd('C:/Users/dhocking/Documents/temperatureProject/')
+setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
+#setwd('C:/Users/dhocking/Documents/temperatureProject/')
 
 #baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
-#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
-baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+#baseDir <- 'D:/projects/temperatureProject/'
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -242,14 +242,14 @@ system.time(out <- clusterEvalQ(CL, {
 M3 <- mcmc.list(out)
 stopCluster(CL)
 pdf("/Users/Dan/Dropbox/correlatedSlopes.pdf")
-pdf("C:/Users/dhocking/Dropbox/")
+#pdf("C:/Users/dhocking/Dropbox/")
 'C:/Users/dhocking/Documents/temperatureProject/'
-plot(M3[ , 1:5000])
+plot(M3[ , 1:50])
 dev.off()
 
-# summary(M3[ , 1:50])
+summary(M3[ , 1:50])
 
-# summary(M3)$statistics[ , "Mean"]
+summary(M3)$statistics[ , "Mean"]
 
 rm(out)
 
@@ -257,11 +257,7 @@ pairs(as.matrix(M3[ , c(1:8, 17:20)]))
 
 memory.limit(size = 1e6)
 
-#summary(M3)$statistics[ , "Mean"]
-
-#M3.mat <- as.matrix(M3)
-
-#summary.stats <- summary(M3) #$statistics
+summary.stats <- summary(M3)$statistics
 summary.stats[1:1000, 1:2]
 
 # Make "Fixed Effects" Output like summary(lmer)
