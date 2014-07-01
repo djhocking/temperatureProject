@@ -20,9 +20,9 @@ library(MASS)
 library(lme4)
 library(DataCombine) # for the slide function
 
-#baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'  
-# Kyle
-baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
+
+baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'                            # Kyle
+#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
 #baseDir <- 'D:/GitHub/projects/temperatureProject/'                                   # Ben
 
 dataInDir <- paste0(baseDir, 'dataIn/')
