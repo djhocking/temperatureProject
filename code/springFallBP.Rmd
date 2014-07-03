@@ -22,8 +22,10 @@ library(DataCombine) # for the slide function
 
 #baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'  
 # Kyle
-baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
+#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'  # Dan
 #baseDir <- 'D:/GitHub/projects/temperatureProject/'                                   # Ben
+# UNH
+baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -57,6 +59,7 @@ dataSource <- sourceNames[sourceChoice == T]
 
 sourceList <- paste0(paste0(dataSource, collapse = '_'), '_', Sys.Date())
 
+setwd(baseDir)
 #setwd(paste0(baseDir, 'GitHub/projects/temperatureProject/'))
 
 ```
@@ -102,7 +105,7 @@ if (!file.exists(subDataOutDir)){
   setwd(dataInDir)
 
   for ( i in 1:length(dataSource)){
-    load(paste0(dataSource[i], '/streamTempData_', dataSource[i], '.RData'))  #masterData
+    load(paste0(dataSource[i], '/streamTempSitesObservedClimateData_', dataSource[i], '.RData'))  #masterData
     if ( i == 1) {e <- masterData} else ( e <- rbind(e, masterData))
     rm(masterData)
     
@@ -112,13 +115,13 @@ if (!file.exists(subDataOutDir)){
   }
 
 d$site <- as.character(d$site)
-e <- merge(e,d[,c('site', 'StreamOrder', 'HUC_4', 'HUC_8', 'HUC_12' )], by = 'site', all.x = T, sort = F)
+e <- merge(e,d[,c('site', 'StreamOrder', 'HUC4', 'HUC8', 'HUC12' )], by = 'site', all.x = T, sort = F)
 
 # Needed because R confuses factor/character/numeric. 
 e$StreamOrder <- as.character(e$StreamOrder)
-e$HUC_4       <- as.character(e$HUC_4)
-e$HUC_8       <- as.character(e$HUC_8)
-e$HUC_12      <- as.character(e$HUC_12)
+e$HUC4       <- as.character(e$HUC4)
+e$HUC8       <- as.character(e$HUC8)
+e$HUC12      <- as.character(e$HUC12)
 }
 ```
 
@@ -220,7 +223,7 @@ e <- e[order(e$count),]
 ```{r Create the breaks dataframe}
 
 breaks <- data.frame(array(NA,c(nrow(siteYearCombos),8)))
-names(breaks) <- c('site','year', 'HUC_8', 'springBP','summerBP','fallBP','quantileLo','quantileHi')
+names(breaks) <- c('site','year', 'HUC8', 'springBP','summerBP','fallBP','quantileLo','quantileHi')
 breaks$fallBPComplete <- FALSE
 breaks$springBPComplete <- FALSE
 breaks$springOrFallBPComplete <- FALSE
@@ -239,7 +242,7 @@ for ( i in 1:nrow(siteYearCombos)){
   print(i)
   breaks$year[i]  <- as.numeric  (siteYearCombos$year[i])
   breaks$site[i]  <- as.character(siteYearCombos$site[i]) #would like this to stay a factor, but it ends up as numeric in 'breaks'. not sure why
-  breaks$HUC_8[i] <- as.character(d$HUC_8[which(d$site == breaks$site[i])])
+  breaks$HUC8[i] <- as.character(d$HUC8[which(d$site == breaks$site[i])])
     
   tmp <- e[e$site == siteYearCombos$site[i] & e$year  %in% siteYearCombos$year[i] & e$dOY %in% beginningDayForCI:endingDayForCI,'tempIndex']
   if (any(!is.na(tmp))){
@@ -372,10 +375,10 @@ breaks <- merge( x=breaks, y= meanBP, all.x=T, by=c('site') )
 
 # Get the mean BPs for each HUC:
 #  Currently means over all site/year combos. Other option would be to average all site means.
-meanBPHUC8 <- ddply( breaks, .(HUC_8), summarise, meanSpringBPHUC8 = mean(springBP,na.rm=T), meanFallBPHUC8 = mean(fallBP,na.rm=T) )
+meanBPHUC8 <- ddply( breaks, .(HUC8), summarise, meanSpringBPHUC8 = mean(springBP,na.rm=T), meanFallBPHUC8 = mean(fallBP,na.rm=T) )
 breaks$meanSpringBPHUC8 <- NULL; breaks$meanFallBPHUC8 <- NULL # in case we've merged before
 
-breaks <- merge( x=breaks, y= meanBPHUC8, all.x=T, by=c('HUC_8') )
+breaks <- merge( x=breaks, y= meanBPHUC8, all.x=T, by=c('HUC8') )
 
 #Define the averages of the calculated breakpoints.
 meanSpringBP <- mean(breaks$meanSpringBP[is.finite(breaks$meanSpringBP)])
@@ -408,14 +411,14 @@ breaks$fallBPWMean  [is.na(breaks$fallBPWMean   )] <- maxCompleteDOYBP3
 et <- merge( x=e, y=breaks, by=c('year','site'),all.x=T)
 
 # need to sort for plotting pred
-segDF <- segDF[order(segDF$site,segDF$year,segDF$dOY),]
+#segDF <- segDF[order(segDF$site,segDF$year,segDF$dOY),]
 
 ```
 
 
 ```{r save e}
-  save(e,                       file=paste0(dataOutDir, sourceList, '/', 'e_' , sourceList, '.RData'))
-  save(et, breaks, file=paste0(dataOutDir, sourceList, '/', 'et_', sourceList, '.RData'))
+ # save(e,                       file=paste0(dataOutDir, sourceList, '/', 'e_' , sourceList, '.RData'))
+  save(et, breaks, file=paste0(dataOutDir, '/', 'et_', '.RData'))
 
 ```
 
