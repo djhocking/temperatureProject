@@ -15,6 +15,8 @@
 indexCovariateData <- function(record, masterCovariates, catchmentShapefile, projectionString, fields){
   start.time <- proc.time()[3]
   
+  library(sp)
+  
   # Select fields
   selectUpstreamStats <- UpstreamStats[,names(masterCovariates) %in% fields]
   

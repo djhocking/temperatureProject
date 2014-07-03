@@ -228,7 +228,7 @@ length(which(is.na(newLocal)))/length(which(!is.na(newLocal)))*100
 
 ```{r Save the Local Daymet}
 masterData <- newLocal[order(newLocal$site,newLocal$year,newLocal$dOY),]
-save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/streamTempSitesObservedClimateData_', dataSource, '_NeedPrcp.RData'))
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/observedStreamTempAndClimateData_', dataSource, '_NeedPrcp.RData'))
 ```
 
 
@@ -283,5 +283,5 @@ newUpstream <- indexUpstreamDaymetVariablesForObservedSites(masterData, upstream
 
 ```{r Save the dataframe}
 masterData <- newUpstream
-save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/streamTempSitesObservedClimateData_', dataSource, '.RData'))
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/observedStreamTempAndClimateData_', dataSource, '.RData'))
 ```
