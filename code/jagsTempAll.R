@@ -3,12 +3,12 @@ rm(list=ls())
 library(ggplot2)
 library(nlme)
 
-setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
-#setwd('C:/Users/dhocking/Documents/temperatureProject/')
+#setwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
+setwd('C:/Users/dhocking/Documents/temperatureProject/')
 
 #baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
-baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
-#baseDir <- 'D:/projects/temperatureProject/'
+#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -18,7 +18,7 @@ graphsDir <- paste0(baseDir, 'graphs/')
 source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
 
 loadLocalData <- F
-loadetS <- T
+loadetS <- F
 
 if(loadLocalData) {
   load(paste0(dataLocalDir, 'etSCT'))
@@ -31,11 +31,13 @@ if(loadLocalData) {
 str(et)
 summary(et)
 
+##### Temporary HACK ##########
 # replace missing spring and fall BP with means for clipping the data to the synchronized season
 et1 <- et
 et1[which(is.na(et$springBP)), "springBP"] <- mean(et$springBP, na.rm=T)
 et1[is.na(et$fallBP), "fallBP"] <- mean(et$fallBP, na.rm=T)
 et1 <- et1[which(et1$dOY >= et1$springBP & et1$dOY <= et1$fallBP), ]
+####################
 
 # Make dataframe with just variables for modeling and order before standardizing
 et2 <- et1[ , c("agency", "date", "AgencyID", "siteYear", "year", "site", "date", "springBP", "fallBP", "FEATUREID", "HUC_4", "HUC_8", "HUC_12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  
@@ -45,9 +47,29 @@ summary(et2) # strange there are some temp <0 and lots of stream temp NA
 et2 <- na.omit(et2)
 dim(et2)
 
-#### temp just use CT - later add ability to pick state ######
-# et2 <- et2[et2$agency == "CTDEP", ]
-# dim(et2)
+#### temp just use MA - later add ability to pick state ######
+#Northeast
+CTDEP  <- F
+MAFW   <- T
+MAUSGS <- T
+MADEP <- T #MADEEP?
+NHFG   <- F
+NHDES  <- F
+USFS   <- F
+VTFWS  <- F
+MEDMR  <- F
+
+#Montana
+MTUSGSYellowstone <- F
+MTUSGSGlacier <- F
+
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS, MADEP,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier)
+sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'MADEP', 'NHFG', 'NHDES', 'MEDMR', 'USFS', 'VTFWS',  'MTUSGSYellowstone', 'MTUSGSGlacier')
+
+dataSource <- sourceNames[sourceChoice == T]
+
+et2 <- et2[et2$agency %in% sourceChoice, ]
+dim(et2)
 #############
 
 etS <- cbind(et2[ ,c(1:14)],

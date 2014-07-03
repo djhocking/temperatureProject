@@ -42,6 +42,7 @@ Which agencies do you want to pull data from?
 CTDEP  <- T
 MAFW   <- T
 MAUSGS <- T
+MADEP <- T #MADEEP?
 NHFG   <- T
 NHDES  <- T
 USFS   <- T
@@ -52,8 +53,8 @@ MEDMR  <- T
 MTUSGSYellowstone <- F
 MTUSGSGlacier <- F
 
-sourceChoice <- list( CTDEP,   MAFW,   MAUSGS,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier)
-sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'NHFG', 'NHDES', 'MEDMR', 'USFS', 'VTFWS',  'MTUSGSYellowstone', 'MTUSGSGlacier')
+sourceChoice <- list( CTDEP,   MAFW,   MAUSGS, MADEP,   NHFG,   NHDES,   MEDMR,   USFS,   VTFWS,    MTUSGSYellowstone,   MTUSGSGlacier)
+sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'MADEP', 'NHFG', 'NHDES', 'MEDMR', 'USFS', 'VTFWS',  'MTUSGSYellowstone', 'MTUSGSGlacier')
   
 dataSource <- sourceNames[sourceChoice == T]
 
@@ -418,7 +419,7 @@ et <- merge( x=e, y=breaks, by=c('year','site'),all.x=T)
 
 ```{r save e}
  # save(e,                       file=paste0(dataOutDir, sourceList, '/', 'e_' , sourceList, '.RData'))
-  save(et, breaks, file=paste0(dataOutDir, '/', 'et_', '.RData'))
+  save(et, breaks, file=paste0(dataOutDir, '/', 'ets', '.RData'))
 
 ```
 
