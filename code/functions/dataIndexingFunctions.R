@@ -1,4 +1,69 @@
-# Functions used in working with the Daymet climate data
+# Functions used in working with the different data sources.
+
+
+#=========================================================================================================
+# Description: 
+#   This function reads in stream temp timeseries and/or the respective covariate data for different data 
+#   sources, joins them together, and outputs a dataframe.
+# Usage:
+#   readStreamTempData(timeSeries = TRUE, covariates = TRUE, dataSourceList = c('CTDEP', 'MAFW', ...), 
+#                      fieldListTS = c('site', 'date', 'temp', ...), 
+#                      fieldListCS = 'ALL', 
+#                      directory = '.../temperatureProjects/dataIn/)
+#
+# Arguments:
+#    1) timeSeries      A TRUE/FALSE statement of whether to read in the timeseries data.
+#    2) covariates      A TRUE/FALSE statement of whether to read in the covariate data.
+#    3) dataSourceList  A character vector of the agency abbreviations of the data sources.
+#    4) fieldListTS     A character vector of the common fields to be in the output dataframe.
+#    5) fieldListCD     A character vector of the common fields to be in the output dataframe. If set 
+#                         set equal to 'ALL' then all fields are selected.
+#    6) directory       A character vector of the parent dataframe of where the data is stored (dataIn).
+#
+# It returns a dataframe with the site name, lat/lon, FEATUREID, and the select covariate values.
+#=========================================================================================================
+readStreamTempData <- function(timeSeries, covariates, dataSourceList, fieldListTS, fieldListCD, directory){
+  
+  # Loop through the agencies
+  for ( i in 1:length(dataSourceList)){
+    
+    # Read in timeseries data
+    # -----------------------
+    if( timeSeries == T ){
+      
+      # Individual files
+      load(paste0(directory, dataSourceList[i], '/observedStreamTempAndClimateData_', dataSourceList[i], '.RData'))
+      
+      # Join files
+      if ( i == 1 ) { tS <- masterData[,fieldListTS]} else ( tS <- rbind(tS, masterData[,fieldListTS]) )
+    }
+    
+    # Read in covariates
+    # ------------------
+    if( covariates == T ){
+      
+      # Individual files
+      load(paste0(directory, dataSourceList[i], '/covariateData_', dataSourceList[i], '.RData'))
+
+      # Index the fields
+      if( 'ALL' %in% fieldListCD ) {covs <- covariateData} else( covs <- covariateData[, fieldListCD])
+      
+      # Join files
+      if ( i == 1 ) { cD <- covs} else ( cD <- rbind(cD, covs) )
+    }
+    
+  }
+  
+  # Prepare output
+  ifelse(  exists('tS') &  exists ('cD'),  dataOut <- merge(tS, cD, by = 'site', all.x = T, all.F = F, sort = F), 
+           ifelse(  exists('tS') & !exists ('cD'),  dataOut <- tS,
+                    ifelse( !exists('tS') &  exists ('cD'),  dataOut <- cD, 
+                            print("'timeSeries' or 'covariates' must be TRUE."))))
+  
+  # Output
+  return(dataOut)
+}
+#=========================================================================================================
 
 
 #=========================================================================================================
