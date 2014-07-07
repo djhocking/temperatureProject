@@ -12,6 +12,7 @@ rm(list=ls())
 
 library(ggplot2)
 library(dplyr)
+library(DataCombine) # for the slide function
 library(nlme)
 
 #stempDataSyncwd('/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/')
@@ -53,19 +54,27 @@ sourceNames  <- c   ('CTDEP', 'MAFW', 'MAUSGS', 'MADEP', 'NHFG', 'NHDES', 'MEDMR
 
 dataSource <- sourceNames[sourceChoice == T]
 
-fields <- c("agency", "date", "AgencyID", "year", "site", "date", "dOY", "temp")
+fields <- c("agency", "date", "AgencyID", "year", "site", "date", "dOY", "temp", "airTemp", "prcp", "srad", "dayl", "swe")
 
 tempData <- readStreamTempData(timeSeries=TRUE, covariates=TRUE, dataSourceList=dataSource, fieldListTS=fields, fieldListCD='ALL', directory=dataInDir)
 springFallBPs$site <- as.character(springFallBPs$site)
 
 # Join with break points
 tempDataBP <- left_join(tempData, springFallBPs, by=c('site', 'year'))
+rm(tempData) # save some memory
 
 # Clip to syncronized season
 tempDataSync <- filter(tempDataBP, dOY >= finalSpringBP & dOY <= finalFallBP)
 ```
 
 ```{r lag airTemp & prcp}
+
+# Order by group and date
+tempDataSync <- tempDataSync[order(tempDataSync$site,tempDataSync$year,tempDataSync$dOY),]
+
+# For checking the order of tempDataSync
+tempDataSync$count <- 1:length(tempDataSync$year)
+
 tempDataSync <- tempDataSync[order(tempDataSync$count),] # just to make sure tempDataSync is ordered for the slide function
 
 # airTemp
@@ -81,10 +90,10 @@ tempDataSync <- slide(tempDataSync, Var = "prcp", GroupVar = "site", slideBy = -
 
 ```{r}
 # Make dataframe with just variables for modeling and order before standardizing
-tempDataSync <- tempDataSync[ , c("agency", "date", "AgencyID", "year", "site", "date", "finalSpringBP", "finalFallBP", "FEATUREID", "HUC4", "HUC8", "HUC12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWtempDataSyncland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  
+tempDataSync <- tempDataSync[ , c("agency", "date", "AgencyID", "year", "site", "date", "finalSpringBP", "finalFallBP", "FEATUREID", "HUC4", "HUC8", "HUC12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  
 
+summary(tempDataSync)
 dim(tempDataSync)
-summary(tempDataSync) # strange there are some temp <0 and lots of stream temp NA
 tempDataSync <- na.omit(tempDataSync)
 dim(tempDataSync)
 
