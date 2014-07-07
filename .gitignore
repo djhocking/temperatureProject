@@ -21,6 +21,7 @@ dataIn/nlme.RData
 gamm2.RData
 localData/
 presentations/
+dataOut/tempDataSyncS.RData
 
 # Kyle.ignore
 maps/

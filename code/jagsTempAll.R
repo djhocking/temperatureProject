@@ -10,6 +10,7 @@ library(nlme)
 #baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
 #baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
 baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
+setwd(baseDir)
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
@@ -23,7 +24,7 @@ loadLocalData <- F
 if(loadLocalData) {
   load(paste0(dataLocalDir, 'etSCT'))
 } else {
-  load(paste0(dataOutDir, 'etS.RData'))
+  load(paste0(dataOutDir, 'tempDataSync.RData'))
 }
 
 
@@ -97,8 +98,8 @@ sink()
                      #"elevation")
 #K.0 <- length(variables.fixed)
 X.0 <- data.frame(intercept = 1,
-                  lat = etS$Latitude,
-                  lon = etS$Longitude)
+                  lat = tempDataSyncS$Latitude,
+                  lon = tempDataSyncS$Longitude)
 variables.fixed <- names(X.0)
 K.0 <- length(variables.fixed)
 
@@ -115,23 +116,23 @@ K.0 <- length(variables.fixed)
 # Slope, Aspect, Dams/Impoundments, Agriculture, Wetland, Coarseness, dayl, srad, swe
 
 X.site <- data.frame(intercept.site = 1, 
-                     airTemp = etS$airTemp, 
-                     airTempLag1 = etS$airTempLagged1,
-                     airTempLag2 = etS$airTempLagged2,
-                     precip = etS$prcp,
-                     precipLag1 = etS$prcpLagged1,
-                     precipLag2 = etS$prcpLagged3,
-                     drainage = etS$TotDASqKM,
-                     forest = etS$Forest,
-                     elevation = etS$ReachElevationM,
-                     coarseness = etS$SurficialCoarseC,
-                     wetland = etS$CONUSWetland,
-                     impoundments = etS$ImpoundmentsAllSqKM,
-                     swe = etS$swe)
+                     airTemp = tempDataSyncS$airTemp, 
+                     airTempLag1 = tempDataSyncS$airTempLagged1,
+                     airTempLag2 = tempDataSyncS$airTempLagged2,
+                     precip = tempDataSyncS$prcp,
+                     precipLag1 = tempDataSyncS$prcpLagged1,
+                     precipLag2 = tempDataSyncS$prcpLagged3,
+                     drainage = tempDataSyncS$TotDASqKM,
+                     forest = tempDataSyncS$Forest,
+                     elevation = tempDataSyncS$ReachElevationM,
+                     coarseness = tempDataSyncS$SurficialCoarseC,
+                     wetland = tempDataSyncS$CONUSWetland,
+                     impoundments = tempDataSyncS$ImpoundmentsAllSqKM,
+                     swe = tempDataSyncS$swe)
 variables.site <- names(X.site)
-J <- length(unique(etS$site))
+J <- length(unique(tempDataSyncS$site))
 K <- length(variables.site)
-n <- dim(etS)[1]
+n <- dim(tempDataSyncS)[1]
 W.site <- diag(K)
 
 # Random Year effects
@@ -141,11 +142,11 @@ W.site <- diag(K)
     #                "dOY3")
 
 X.year <- data.frame(intercept.year = 1, 
-                     dOY = etS$dOY, 
-                     dOY2 = etS$dOY^2,
-                     dOY3 = etS$dOY^3)
+                     dOY = tempDataSyncS$dOY, 
+                     dOY2 = tempDataSyncS$dOY^2,
+                     dOY3 = tempDataSyncS$dOY^3)
 variables.year <- names(X.year)
-Ti <- length(unique(etS$year))
+Ti <- length(unique(tempDataSyncS$year))
 L <- length(variables.year)
 W.year <- diag(L)
 
@@ -158,11 +159,11 @@ data <- list(n = n,
              X.0 = X.0,
              W.site = W.site,
              W.year = W.year,
-             temp = etS$temp,
+             temp = tempDataSyncS$temp,
              X.site = X.site, #as.matrix(X.site),
              X.year = as.matrix(X.year),
-             site = as.factor(etS$site),
-             year = as.factor(etS$year))
+             site = as.factor(tempDataSyncS$site),
+             year = as.factor(tempDataSyncS$year))
 
 inits <- function(){
   list(#B.raw = array(rnorm(J*K), c(J,K)), 
@@ -184,9 +185,9 @@ params <- c("sigma",
             "sigma.b.year",
             "stream.mu")
 
-#M1 <- bugs(etS, )
+#M1 <- bugs(tempDataSyncS, )
 
-n.burn = 3000
+n.burn = 10000
 n.it = 3000
 n.thin = 3
 
@@ -207,9 +208,9 @@ system.time(out <- clusterEvalQ(CL, {
 
 M3 <- mcmc.list(out)
 stopCluster(CL)
-pdf("/Users/Dan/Dropbox/correlatedSlopes.pdf")
-#pdf("C:/Users/dhocking/Dropbox/")
-'C:/Users/dhocking/Documents/temperatureProject/'
+
+#pdf("/Users/Dan/Dropbox/correlatedSlopes.pdf")
+pdf("C:/Users/dhocking/Dropbox/correlatedSlopes.pdf")
 plot(M3[ , 1:50])
 dev.off()
 

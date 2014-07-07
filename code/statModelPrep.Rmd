@@ -99,24 +99,21 @@ dim(tempDataSync)
 
 # Standardize for Analysis
 
-tempDataSyncS <- cbind(tempDataSync[ ,c(1:14)],
-             apply(X = tempDataSync[ ,15:dim(tempDataSync)[2]], MARGIN=2,
+tempDataSyncS <- cbind(tempDataSync[ ,c(1:13)],
+             apply(X = tempDataSync[ ,14:dim(tempDataSync)[2]], MARGIN=2,
                    FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
 
 tempDataSyncS$fyear <- as.factor(tempDataSyncS$year)
 tempDataSyncS$fsite <- as.factor(tempDataSyncS$site)
 
-save(tempDataSyncS, tempDataSync, file = paste0(dataOutDir, 'tempDataSyncS.RData'))
-}
-}
-
-
+########################## NEED TO INCORPORATE TO THISE VERSION ##############
 #Use validation?
 validate = T
   
 #If validating:
   # Choose fraction of total # of sites:
   validateFrac <- 0.1
+############################################################
 
 ```
 
@@ -124,7 +121,7 @@ validate = T
 
 ```{r save tempDataSync for use in analysis}
 
-save(tempDataSync, file=paste0(dataOutDir, 'tempDataSync.RData'))
+save(tempDataSync, tempDataSyncS, file=paste0(dataOutDir, 'tempDataSync.RData'))
 
 ```
 
