@@ -214,10 +214,6 @@ pdf("C:/Users/dhocking/Dropbox/correlatedSlopes.pdf")
 plot(M3[ , 1:50])
 dev.off()
 
-summary(M3[ , 1:50])
-
-summary(M3)$statistics[ , "Mean"]
-
 rm(out)
 
 pairs(as.matrix(M3[ , c(1:8, 17:20)]))
@@ -256,9 +252,9 @@ ran.ef.site
 ran.ef.year <- as.data.frame(matrix(NA, L, 2))
 names(ran.ef.year) <- c("Variance", "Std. Dev.")
 row.names(ran.ef.year) <- variables.year
-for(k in 1:L){
-  ran.ef.year[k, 2] <- summary.stats[paste0('sigma.b.year[',k,']') , c("Mean")]
-  ran.ef.year[k, 1] <- ran.ef.year[k, 2] ^ 2
+for(l in 1:L){
+  ran.ef.year[l, 2] <- summary.stats[paste0('sigma.b.year[',l,']') , c("Mean")]
+  ran.ef.year[l, 1] <- ran.ef.year[l, 2] ^ 2
 }
 ran.ef.year
 
@@ -279,14 +275,18 @@ cor.site
 cor.year <- as.data.frame(matrix(NA, L, L))
 names(cor.year) <- variables.year
 row.names(cor.year) <- variables.year
-for(k in 1:L){
-  for(k.prime in 1:L){
-    cor.year[k, k.prime] <- summary.stats[paste('rho.B.year[',k,',',k.prime,']', sep=""), "Mean"]
+for(l in 1:L){
+  for(l.prime in 1:L){
+    cor.year[l, l.prime] <- summary.stats[paste('rho.B.year[',l,',',l.prime,']', sep=""), "Mean"]
   }
 }
 cor.year <- round(cor.year, digits=3)
 cor.year[upper.tri(cor.year, diag=TRUE)] <- ''
 cor.year
+
+
+
+
 
 pred.t <- as.data.frame(matrix(NA, n, 2))
 for(i in 1:n){

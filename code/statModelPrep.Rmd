@@ -96,7 +96,33 @@ summary(tempDataSync)
 dim(tempDataSync)
 tempDataSync <- na.omit(tempDataSync)
 dim(tempDataSync)
+```
 
+```{r separate validation data}
+
+########################## NEED TO INCORPORATE TO THISE VERSION ##############
+#Use validation?
+validate = T
+  
+#If validating:
+  # Choose fraction of total # of sites:
+validateFrac <- 0.2
+
+if(validate) {
+  n.fit <- floor(length(unique(tempDataSync$site)) * (1 - p.valid))
+
+  set.seed(2346)
+  site.fit <- sample(unique(tempDataSync$site), n.fit, replace = FALSE) # select sites to hold back for testing 
+  tempDataSyncValid <- subset(tempDataSync, !site %in% site.fit) # data for validation
+  tempDataSync <- subset(tempDataSync, site %in% site.fit)    # data for model fitting (calibration)
+  } else {
+    tempDataSyncValid <- NULL
+  }
+############################################################
+
+```
+
+```{r Standardize}
 # Standardize for Analysis
 
 tempDataSyncS <- cbind(tempDataSync[ ,c(1:13)],
@@ -106,22 +132,21 @@ tempDataSyncS <- cbind(tempDataSync[ ,c(1:13)],
 tempDataSyncS$fyear <- as.factor(tempDataSyncS$year)
 tempDataSyncS$fsite <- as.factor(tempDataSyncS$site)
 
-########################## NEED TO INCORPORATE TO THISE VERSION ##############
-#Use validation?
-validate = T
-  
-#If validating:
-  # Choose fraction of total # of sites:
-  validateFrac <- 0.1
-############################################################
+tempDataSyncValidS <- cbind(tempDataSyncValid[ ,c(1:13)],
+             apply(X = tempDataSyncValid[ ,14:dim(tempDataSyncValid)[2]], MARGIN=2,
+                   FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
+
+tempDataSyncValidS$fyear <- as.factor(tempDataSyncValidS$year)
+tempDataSyncValidS$fsite <- as.factor(tempDataSyncValidS$site)
+
+
 
 ```
 
 
-
 ```{r save tempDataSync for use in analysis}
 
-save(tempDataSync, tempDataSyncS, file=paste0(dataOutDir, 'tempDataSync.RData'))
+save(tempDataSync, tempDataSyncS, tempDataSyncValid, tempDataSyncValidS, file=paste0(dataOutDir, 'tempDataSync.RData'))
 
 ```
 
