@@ -94,7 +94,7 @@ tempDataSync <- tempDataSync[ , c("agency", "date", "AgencyID", "year", "site", 
 
 summary(tempDataSync)
 dim(tempDataSync)
-tempDataSync <- na.omit(tempDataSync)
+tempDataSync <- na.omit(tempDataSync) ####### Change this so don't take out NA in stream temperature
 dim(tempDataSync)
 ```
 

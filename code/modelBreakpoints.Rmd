@@ -1,0 +1,68 @@
+Models for breakpoints
+----------------------
+When adding new models:
+   1) Follow the structure of previously defined models and name it: "bpmX"
+   2) Assign the description of the model and name it: "bpdX"
+   3) Add new models to the model lists ("bdModels" and "bpModelsDescriptions")
+
+```{r regression bp~+...}
+#This section models the breakpoints as a function of fixed covariates.
+
+#=================================================================================================================
+#                                          Define the structure of the breakpoint models
+#=================================================================================================================
+
+#Breakpoint Model 1:
+#-------------------
+bpd1 <- 'No interactions'
+bpm1 <- '~LatitudeS + LongitudeS + ForestS + AgricultureLS +  BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS +(1|year)'
+
+#Breakpoint Model 2:
+#-------------------
+bpd2 <- 'Full interactions'
+bpm2 <-  '~ ( LatitudeS + LongitudeS + ForestS + AgricultureLS + BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS )^2 + (1|year)'
+
+#Breakpoint Model 3: 
+#-------------------
+bpd3 <- 'Full interactions. Impoundments added.'
+bpm3 <-  '~ ( LatitudeS + LongitudeS + ForestS + AgricultureLS + BasinElevationMS + ReachSlopePCNTS + TotDASqKMLS + WetlandOrWaterS + SurficialCoarseCLS + ImpoundmentsOpenSqKMLS )^2 + (1|year)'
+
+# List all of the models for reference later:
+bpModels <- list(bpm1, bpm2, bpm3)
+bpModelsDescriptions <- list(bpd1, bpd2, bpd3)
+
+#=================================================================================================================
+#                                               Breakpoint Models
+#=================================================================================================================
+
+bp1mods <- list()
+bp2mods <- list()
+bp3mods <- list()
+
+for ( i in 1:length(bpModels)){
+  
+  # Breakpoint Models
+  bp1mods[[i]] <- lmer(as.formula(paste('springBP', bpModels[[i]])), data=siteData)
+  bp2mods[[i]] <- lmer(as.formula(paste('summerBP', bpModels[[i]])), data=siteData)
+  bp3mods[[i]] <- lmer(as.formula(paste('fallBP'  , bpModels[[i]])), data=siteData)
+  
+  # Breakpoint Model AICs
+  spr <- data.frame(extractAIC(bp1mods[[i]])[1], extractAIC(bp1mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(spr) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { sprBPModelMetrics <- spr} else ( sprBPModelMetrics <- rbind(sprBPModelMetrics, spr))
+
+  smr <- data.frame(extractAIC(bp2mods[[i]])[1], extractAIC(bp2mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(smr) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { smrBPModelMetrics <- smr} else ( smrBPModelMetrics <- rbind(smrBPModelMetrics, smr))
+
+  fal <- data.frame(extractAIC(bp3mods[[i]])[1], extractAIC(bp3mods[[i]])[2], bpModelsDescriptions[[i]])
+  names(fal) <- c('df', 'AIC', 'Model Description')
+  if( i == 1 ) { falBPModelMetrics <- fal} else ( falBPModelMetrics <- rbind(falBPModelMetrics, fal)) 
+}
+
+sprBPModelMetrics
+smrBPModelMetrics
+falBPModelMetrics
+
+#Checked "AIC" vs "extractAIC" on these models and they give the same values.
+```

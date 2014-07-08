@@ -220,7 +220,7 @@ pairs(as.matrix(M3[ , c(1:8, 17:20)]))
 
 memory.limit(size = 1e6)
 
-summary.stats <- summary(M3)$statistics
+summary.stats <- summary(M3)
 summary.stats[1:1000, 1:2]
 
 # Make "Fixed Effects" Output like summary(lmer)
@@ -228,13 +228,13 @@ fix.ef <- as.data.frame(matrix(NA, K.0+K+L, 2))
 names(fix.ef) <- c("Mean", "Std. Error")
 row.names(fix.ef) <- c(variables.fixed, variables.site, variables.year)
 for(k in 1:K.0){
-  fix.ef[k, ] <- summary.stats[paste0('B.0[',k,']') , c("Mean", "SD")]
+  fix.ef[k, ] <- summary.stats$statistics[paste0('B.0[',k,']') , c("Mean", "SD")]
 }
 for(k in 1:K){
-  fix.ef[k+K.0, ] <- summary.stats[paste0('mu.site[',k,']') , c("Mean", "SD")]
+  fix.ef[k+K.0, ] <- summary.stats$statistics[paste0('mu.site[',k,']') , c("Mean", "SD")]
 }
 for(l in 1:L){
-  fix.ef[l+K.0+K, ] <- summary.stats[paste0('mu.year[',l,']') , c("Mean", "SD")]
+  fix.ef[l+K.0+K, ] <- summary.stats$statistics[paste0('mu.year[',l,']') , c("Mean", "SD")]
 }
 fix.ef
 
@@ -243,7 +243,7 @@ ran.ef.site <- as.data.frame(matrix(NA, K, 2))
 names(ran.ef.site) <- c("Variance", "Std. Dev.")
 row.names(ran.ef.site) <- variables.site
 for(k in 1:K){
-  ran.ef.site[k, 2] <- summary.stats[paste0('sigma.b.site[',k,']') , c("Mean")]
+  ran.ef.site[k, 2] <- summary.stats$statistics[paste0('sigma.b.site[',k,']') , c("Mean")]
   ran.ef.site[k, 1] <- ran.ef.site[k, 2] ^ 2
 }
 ran.ef.site
@@ -253,7 +253,7 @@ ran.ef.year <- as.data.frame(matrix(NA, L, 2))
 names(ran.ef.year) <- c("Variance", "Std. Dev.")
 row.names(ran.ef.year) <- variables.year
 for(l in 1:L){
-  ran.ef.year[l, 2] <- summary.stats[paste0('sigma.b.year[',l,']') , c("Mean")]
+  ran.ef.year[l, 2] <- summary.stats$statistics[paste0('sigma.b.year[',l,']') , c("Mean")]
   ran.ef.year[l, 1] <- ran.ef.year[l, 2] ^ 2
 }
 ran.ef.year
@@ -264,7 +264,7 @@ names(cor.site) <- variables.site
 row.names(cor.site) <- variables.site
 for(k in 1:K){
   for(k.prime in 1:K){
-    cor.site[k, k.prime] <- summary.stats[paste('rho.B.site[',k,',',k.prime,']', sep=""), "Mean"]
+    cor.site[k, k.prime] <- summary.stats$statistics[paste('rho.B.site[',k,',',k.prime,']', sep=""), "Mean"]
   }
 }
 cor.site <- round(cor.site, digits=3)
@@ -277,7 +277,7 @@ names(cor.year) <- variables.year
 row.names(cor.year) <- variables.year
 for(l in 1:L){
   for(l.prime in 1:L){
-    cor.year[l, l.prime] <- summary.stats[paste('rho.B.year[',l,',',l.prime,']', sep=""), "Mean"]
+    cor.year[l, l.prime] <- summary.stats$statistics[paste('rho.B.year[',l,',',l.prime,']', sep=""), "Mean"]
   }
 }
 cor.year <- round(cor.year, digits=3)
@@ -285,45 +285,50 @@ cor.year[upper.tri(cor.year, diag=TRUE)] <- ''
 cor.year
 
 
-
-
-
-pred.t <- as.data.frame(matrix(NA, n, 2))
+# Add predicted stream temperatures to dataframe
+tempDataSync$streamTempPred <- NA
 for(i in 1:n){
-  pred.t[i, 1] <- summary.stats[paste0('stream.mu[',i,']') , c("Mean")]
-  print(i)
+  tempDataSync$streamTempPred[i] <- summary.stats$statistics[paste0('stream.mu[',i,']') , c("Mean")]
+  # tempDataSync$streamTempPredLCI[i] <- summary.stats$quantiles[paste0('stream.mu[',i,']') , c("2.5%")]
+  # tempDataSync$streamTempPredLCI[i] <- summary.stats$quantiles[paste0('stream.mu[',i,']') , c("97.5%")]
 }
-pred.t[ , 2] <- etS$site
-pred.t$airTemp <- (etS$airTemp * sd(et2$airTemp)) + mean(et2$airTemp)
-pred.t$year <- etS$year
-pred.t$dOY <- etS$dOY
-names(pred.t) <- c("streamTemp", "site", "airTemp", "year", "dOY")
 
-all.data <- data.frame(et2, pred.t)
+########## Check model fit #############
+err <- tempDataSync$streamTempPred - tempDataSync$temp
+rmse(err)
 
-ggplot(all.data, aes(airTemp, streamTemp)) + geom_point(aes(colour = dOY, size=0.5, alpha=0.5)) + facet_grid(site ~ year)
+# Add fit for validation data
 
-ggplot(all.data, aes(dOY, streamTemp)) + geom_point(size=0.75) + geom_point(data=etS, aes(dOY, temp), colour = "red", size=0.75) + facet_grid(site ~ year)
+########################################
 
-ggplot(all.data, aes(dOY, streamTemp, colour = year)) + geom_line(size=0.5)
+############ Plots ###############
+ggplot(tempDataSync, aes(temp, streamTempPred)) + geom_point() +geom_abline(slope=1, intercept=0, colour='red')
+
+ggplot(tempDataSync, aes(airTemp, streamTempPred)) + geom_point(aes(colour = dOY, size=0.5, alpha=0.5)) + facet_grid(. ~ year)
+
+ggplot(tempDataSync, aes(dOY, streamTempPred)) + geom_point(size=0.75) + geom_point(data=tempDataSync, aes(dOY, temp), colour = "red", size=0.75) + facet_grid(. ~ year)
+
+ggplot(tempDataSync, aes(dOY, streamTempPred, colour = year)) + geom_line(size=0.5)
 
 
-ggplot(all.data, aes(dOY, streamTemp, colour = year)) + geom_point(aes(group = year))
+ggplot(tempDataSync, aes(dOY, streamTempPred, colour = year)) + geom_point(aes(group = year))
 
-ggplot(all.data, aes(airTemp, streamTemp)) + geom_line(size = 0.5, alpha = 0.5) + theme_bw() + theme(legend.position="none")
-ggplot(all.data, aes(airTemp, streamTemp, colour = site)) + geom_point(size = 0.5, alpha = 0.5) + theme_bw() + theme(legend.position="none")
+ggplot(tempDataSync, aes(airTemp, streamTempPred)) + geom_line(size = 0.5, alpha = 0.3) + theme_bw() + theme(legend.position="none")
+ggplot(tempDataSync, aes(airTemp, streamTempPred, colour = site)) + geom_point(size = 0.5, alpha = 0.8) + theme_bw() + theme(legend.position="none")
 
-ggplot(all.data, aes(airTemp, streamTemp, group = site)) + 
-  geom_line(stat='smooth', method='lm', se=F, alpha=0.1, size=0.5, colour='black') + 
+ggplot(tempDataSync, aes(airTemp, streamTempPred, group = site)) + 
+  geom_line(stat='smooth', method='lm', se=F, alpha=0.2, size=0.5, colour='black') + 
   theme_bw() +
   theme(legend.position="none") + 
   xlab('Air Temperature (C)') + 
   ylab('Predicted Stream Temperature (C)')
 
-# dOY.eff.site <- 
+# plot observed and predicte vs day of the year for all sites
+for(i in 1:length(unique(tempDataSync$fsite))){
+  foo <- ggplot(tempDataSync[which(as.numeric(tempDataSync$fsite) == i), ], aes(dOY, temp)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point() + geom_line() + geom_point(aes(dOY, streamTempPred), colour = 'red', size=1) + geom_line(aes(dOY, streamTempPred), colour = 'red', size=0.1) + ggtitle(unique(tempDataSync$fsite)[i]) + facet_wrap(~year)
+  ggsave(filename=paste0(dataLocalDir,'/', 'plots/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=8,height=5, units='in' )
+} # surprisingly fast
 
-err <- pred.t$streamTemp - etS$temp
-rmse(err)
 
 # compare with lme4
 # Random slopes for crossed
