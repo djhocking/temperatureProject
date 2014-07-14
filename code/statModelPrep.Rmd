@@ -65,6 +65,10 @@ rm(tempData) # save some memory
 
 # Clip to syncronized season
 tempDataSync <- filter(tempDataBP, dOY >= finalSpringBP & dOY <= finalFallBP)
+
+# Creat site and year factor variables
+tempDataSync$fyear <- as.factor(tempDataSync$year)
+tempDataSync$fsite <- as.factor(tempDataSync$site)
 ```
 
 ```{r lag airTemp & prcp}
@@ -90,7 +94,7 @@ tempDataSync <- slide(tempDataSync, Var = "prcp", GroupVar = "site", slideBy = -
 
 ```{r}
 # Make dataframe with just variables for modeling and order before standardizing
-tempDataSync <- tempDataSync[ , c("agency", "date", "AgencyID", "year", "site", "date", "finalSpringBP", "finalFallBP", "FEATUREID", "HUC4", "HUC8", "HUC12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  
+tempDataSync <- tempDataSync[ , c("agency", "date", "AgencyID", "year", "fyear", "site", "fsite", "date", "finalSpringBP", "finalFallBP", "FEATUREID", "HUC4", "HUC8", "HUC12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  
 
 summary(tempDataSync)
 dim(tempDataSync)
@@ -99,8 +103,6 @@ dim(tempDataSync)
 ```
 
 ```{r separate validation data}
-
-########################## NEED TO INCORPORATE TO THISE VERSION ##############
 #Use validation?
 validate = T
   
@@ -109,7 +111,7 @@ validate = T
 validateFrac <- 0.2
 
 if(validate) {
-  n.fit <- floor(length(unique(tempDataSync$site)) * (1 - p.valid))
+  n.fit <- floor(length(unique(tempDataSync$site)) * (1 - validateFrac))
 
   set.seed(2346)
   site.fit <- sample(unique(tempDataSync$site), n.fit, replace = FALSE) # select sites to hold back for testing 
@@ -118,22 +120,20 @@ if(validate) {
   } else {
     tempDataSyncValid <- NULL
   }
-############################################################
 
 ```
 
 ```{r Standardize}
 # Standardize for Analysis
 
-tempDataSyncS <- cbind(tempDataSync[ ,c(1:13)],
-             apply(X = tempDataSync[ ,14:dim(tempDataSync)[2]], MARGIN=2,
+tempDataSyncS <- cbind(tempDataSync[ ,c(1:15)],
+             apply(X = tempDataSync[ ,16:dim(tempDataSync)[2]], MARGIN=2,
                    FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
 
-tempDataSyncS$fyear <- as.factor(tempDataSyncS$year)
-tempDataSyncS$fsite <- as.factor(tempDataSyncS$site)
 
-tempDataSyncValidS <- cbind(tempDataSyncValid[ ,c(1:13)],
-             apply(X = tempDataSyncValid[ ,14:dim(tempDataSyncValid)[2]], MARGIN=2,
+
+tempDataSyncValidS <- cbind(tempDataSyncValid[ ,c(1:15)],
+             apply(X = tempDataSyncValid[ ,16:dim(tempDataSyncValid)[2]], MARGIN=2,
                    FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
 
 tempDataSyncValidS$fyear <- as.factor(tempDataSyncValidS$year)

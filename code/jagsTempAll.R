@@ -66,7 +66,7 @@ cat("
     sigma.b.site[k] <- sqrt(sigma.B.site[k, k])
     }
     
-    # YEAR EFFECTiS
+    # YEAR EFFECTS
     # Priors for random effects of year
     for(t in 1:Ti){ # Ti years
     B.year[t, 1:L] ~ dmnorm(mu.year[ ], tau.B.year[ , ])
@@ -187,7 +187,7 @@ params <- c("sigma",
 
 #M1 <- bugs(tempDataSyncS, )
 
-n.burn = 10000
+n.burn = 5000
 n.it = 3000
 n.thin = 3
 
@@ -224,23 +224,26 @@ summary.stats <- summary(M3)
 summary.stats[1:1000, 1:2]
 
 # Make "Fixed Effects" Output like summary(lmer)
-fix.ef <- as.data.frame(matrix(NA, K.0+K+L, 2))
-names(fix.ef) <- c("Mean", "Std. Error")
+fix.ef <- as.data.frame(matrix(NA, K.0+K+L, 4))
+names(fix.ef) <- c("Mean", "Std. Error", "LCI", "UCI")
 row.names(fix.ef) <- c(variables.fixed, variables.site, variables.year)
 for(k in 1:K.0){
-  fix.ef[k, ] <- summary.stats$statistics[paste0('B.0[',k,']') , c("Mean", "SD")]
+  fix.ef[k, 1:2] <- summary.stats$statistics[paste0('B.0[',k,']') , c("Mean", "SD")]
+  fix.ef[k, 3:4] <- summary.stats$quantiles[paste0('B.0[',k,']') , c("2.5%", "97.5%")]
 }
 for(k in 1:K){
-  fix.ef[k+K.0, ] <- summary.stats$statistics[paste0('mu.site[',k,']') , c("Mean", "SD")]
+  fix.ef[k+K.0, 1:2] <- summary.stats$statistics[paste0('mu.site[',k,']') , c("Mean", "SD")]
+  fix.ef[k+K.0, 3:4] <- summary.stats$quantiles[paste0('mu.site[',k,']') , c("2.5%", "97.5%")]
 }
 for(l in 1:L){
-  fix.ef[l+K.0+K, ] <- summary.stats$statistics[paste0('mu.year[',l,']') , c("Mean", "SD")]
+  fix.ef[l+K.0+K, 1:2] <- summary.stats$statistics[paste0('mu.year[',l,']') , c("Mean", "SD")]
+  fix.ef[l+K.0+K, 3:4] <- summary.stats$quantiles[paste0('mu.year[',l,']') , c("2.5%", "97.5%")]
 }
 fix.ef
 
 # Make Random Effects Output like summary(lmer)
 ran.ef.site <- as.data.frame(matrix(NA, K, 2))
-names(ran.ef.site) <- c("Variance", "Std. Dev.")
+names(ran.ef.site) <- c("Variance", "SD")
 row.names(ran.ef.site) <- variables.site
 for(k in 1:K){
   ran.ef.site[k, 2] <- summary.stats$statistics[paste0('sigma.b.site[',k,']') , c("Mean")]
@@ -250,7 +253,7 @@ ran.ef.site
 
 # Make Random Effects Output like summary(lmer)
 ran.ef.year <- as.data.frame(matrix(NA, L, 2))
-names(ran.ef.year) <- c("Variance", "Std. Dev.")
+names(ran.ef.year) <- c("Variance", "SD")
 row.names(ran.ef.year) <- variables.year
 for(l in 1:L){
   ran.ef.year[l, 2] <- summary.stats$statistics[paste0('sigma.b.year[',l,']') , c("Mean")]
@@ -284,18 +287,33 @@ cor.year <- round(cor.year, digits=3)
 cor.year[upper.tri(cor.year, diag=TRUE)] <- ''
 cor.year
 
+# combine model summary results into an S4 Object
+setClass("jagsSummary",
+         representation(fixEf="data.frame",
+                        ranEf="list",
+                        ranCor="list"))
+
+modSummary <- new("jagsSummary")
+modSummary@fixEf <- fix.ef
+modSummary@ranEf <- list(ranSite=ran.ef.site, ranYear=ran.ef.year)
+modSummary@ranCor <- list(corSite=cor.site, corYear=cor.year)
+
+modSummary
+str(modSummary)
 
 # Add predicted stream temperatures to dataframe
 tempDataSync$streamTempPred <- NA
+tempDataSync$streamTempPredLCI <- NA
+tempDataSync$streamTempPredUCI <- NA
 for(i in 1:n){
   tempDataSync$streamTempPred[i] <- summary.stats$statistics[paste0('stream.mu[',i,']') , c("Mean")]
-  # tempDataSync$streamTempPredLCI[i] <- summary.stats$quantiles[paste0('stream.mu[',i,']') , c("2.5%")]
-  # tempDataSync$streamTempPredLCI[i] <- summary.stats$quantiles[paste0('stream.mu[',i,']') , c("97.5%")]
+  tempDataSync$streamTempPredLCI[i] <- summary.stats$quantiles[paste0('stream.mu[',i,']') , c("2.5%")]
+  tempDataSync$streamTempPredUCI[i] <- summary.stats$quantiles[paste0('stream.mu[',i,']') , c("97.5%")]
 }
 
 ########## Check model fit #############
-err <- tempDataSync$streamTempPred - tempDataSync$temp
-rmse(err)
+tempDataSync$err <- tempDataSync$streamTempPred - tempDataSync$temp
+rmse(tempDataSync$err)
 
 # Add fit for validation data
 
@@ -324,36 +342,23 @@ ggplot(tempDataSync, aes(airTemp, streamTempPred, group = site)) +
   ylab('Predicted Stream Temperature (C)')
 
 # plot observed and predicte vs day of the year for all sites
-for(i in 1:length(unique(tempDataSync$fsite))){
-  foo <- ggplot(tempDataSync[which(as.numeric(tempDataSync$fsite) == i), ], aes(dOY, temp)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point() + geom_line() + geom_point(aes(dOY, streamTempPred), colour = 'red', size=1) + geom_line(aes(dOY, streamTempPred), colour = 'red', size=0.1) + ggtitle(unique(tempDataSync$fsite)[i]) + facet_wrap(~year)
+sites <- unique(tempDataSync$site)
+
+for(i in 1:length(unique(tempDataSync$site))){
+  dataSite <- filter(tempDataSync, filter = site == sites[i])
+  foo <- ggplot(dataSite, aes(dOY, temp)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point(colour = 'blue') + geom_line(colour = 'blue') + geom_point(aes(dOY, streamTempPred), colour = 'red', size=1) + geom_line(aes(dOY, streamTempPred), colour = 'red', size=0.1) + geom_point(aes(dOY, airTemp), colour='black', size=0.1) + ggtitle(unique(tempDataSync$fsite)[i]) + facet_wrap(~year)
   ggsave(filename=paste0(dataLocalDir,'/', 'plots/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=8,height=5, units='in' )
 } # surprisingly fast
-
-
-# compare with lme4
-# Random slopes for crossed
-system.time(lmer7 <- lmer(temp ~ TotDASqKM + Forest + ReachElevationM + airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 + dOY + I(dOY^2) + I(dOY^3) + (airTemp + airTempLagged1 + airTempLagged2 + prcp + prcpLagged1 + prcpLagged2 | site) + (dOY + I(dOY^2) + I(dOY^3)|year), data = etS))
-summary(lmer7)
-ranef(lmer7)
-
-for(j in 1:J){
-  air.eff.site[j] <- sum(ranef(lmer7)$site[j, 2:4])
-}
-air.eff.site
-names(air.eff.site) <- row.names(rand.site)
-
-rand.site <- ranef(lmer7)$site
-rand.site$site <- row.names(rand.site)
-
-library(dplyr)
-by.site <- group_by(rand.site, site)
-summarise(by.site, sum())
 
 
 
 ###### Consider: Slope, Aspect, Dams/Impoundments, Agriculture, Wetland, Coarseness, dayl, srad, swe
 
 ####### Add correlation structure for Lat-Lon and/or HUC ########
+
+##### Add autoregressive component to the model? #########
+
+##### Add interactions such as airTemp*drainage
 
 
 

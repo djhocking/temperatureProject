@@ -34,7 +34,7 @@
     sigma.b.site[k] <- sqrt(sigma.B.site[k, k])
     }
     
-    # YEAR EFFECTiS
+    # YEAR EFFECTS
     # Priors for random effects of year
     for(t in 1:Ti){ # Ti years
     B.year[t, 1:L] ~ dmnorm(mu.year[ ], tau.B.year[ , ])
