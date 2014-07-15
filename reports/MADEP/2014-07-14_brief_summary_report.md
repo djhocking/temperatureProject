@@ -1,9 +1,9 @@
 Massachusetts Daily Stream Temperature Modeling
 ===================
 
--> **Daniel Hocking, Ben Letcher, Kyle O'Neil** <-
+<center><strong>Daniel Hocking, Ben Letcher, Kyle O'Neil</strong></center>
 
--> *Silvio O. Conte Anadromous Fish Research Center, U.S. Geological Survey* <-
+<center><i>Silvio O. Conte Anadromous Fish Research Center, U.S. Geological Survey</i></center>
 
 ### Brief Summary Report: 14 July 2014
 
@@ -21,9 +21,18 @@ We are also investigating further enhancements to the model and incorporation of
 
 Examples of observed (blue) and predicted (red) stream temperature compared with air temperature (black).
 
+#### Well-predicted
 
-![plot of chunk unnamed-chunk-3](figures/unnamed-chunk-3.png) 
+Our model predicts daily stream temperature extremely well for most sites as seen below:
 
+<br>
+<img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/MADEP_W0568_T1.png" height="375px" width="600px" />
 
+#### Poorly Predicted
+
+Our model predictions fail on a small number of sites as seen below. These are likely due to releases from impoundments where we do not have sufficient data to model the release timing and effects.
+
+<br>
+<img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/MADEP_W0454_T1.png" height="375px" width="600px" />
 
 
