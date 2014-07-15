@@ -14,7 +14,7 @@ setwd(baseDir)
 
 dataInDir <- paste0(baseDir, 'dataIn/')
 dataOutDir <- paste0(baseDir, 'dataOut/')
-dataLocalDir <- paste0(baseDir, 'localData')
+dataLocalDir <- paste0(baseDir, 'localData/')
 graphsDir <- paste0(baseDir, 'graphs/')
 
 source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
@@ -251,6 +251,16 @@ for(k in 1:K){
 }
 ran.ef.site
 
+S <- length(unique(tempDataSyncS$site))
+B.site <- as.data.frame(matrix(NA, S, K))
+names(B.site) <- variables.site
+row.names(B.site) <- unique(tempDataSyncS$site)
+for(s in 1:S){
+  for(k in 1:K){
+    B.site[s, k] <- summary.stats$statistics[paste('B.site[',s,',',k,']', sep=""), "Mean"]
+  }
+}
+
 # Make Random Effects Output like summary(lmer)
 ran.ef.year <- as.data.frame(matrix(NA, L, 2))
 names(ran.ef.year) <- c("Variance", "SD")
@@ -260,6 +270,16 @@ for(l in 1:L){
   ran.ef.year[l, 1] <- ran.ef.year[l, 2] ^ 2
 }
 ran.ef.year
+
+Y <- length(unique(tempDataSyncS$year))
+B.year <- as.data.frame(matrix(NA, Y, L))
+names(B.year) <- variables.year
+row.names(B.year) <- unique(tempDataSyncS$year)
+for(y in 1:Y){
+  for(l in 1:L){
+    B.year[y, l] <- summary.stats$statistics[paste('B.year[',y,',',l,']', sep=""), "Mean"]
+  }
+}
 
 # Make correlation matrix of random site effects
 cor.site <- as.data.frame(matrix(NA, K, K))
@@ -291,15 +311,21 @@ cor.year
 setClass("jagsSummary",
          representation(fixEf="data.frame",
                         ranEf="list",
-                        ranCor="list"))
+                        ranCor="list",
+                        BSite="data.frame",
+                        BYear="data.frame"))
 
 modSummary <- new("jagsSummary")
 modSummary@fixEf <- fix.ef
 modSummary@ranEf <- list(ranSite=ran.ef.site, ranYear=ran.ef.year)
 modSummary@ranCor <- list(corSite=cor.site, corYear=cor.year)
+modSummary@BSite <- B.site
+modSummary@BYear <- B.year
 
 modSummary
 str(modSummary)
+
+save(modSummary, file=paste0(dataOutDir, 'modSummary.RData'))
 
 # Add predicted stream temperatures to dataframe
 tempDataSync$streamTempPred <- NA
@@ -310,6 +336,8 @@ for(i in 1:n){
   tempDataSync$streamTempPredLCI[i] <- summary.stats$quantiles[paste0('stream.mu[',i,']') , c("2.5%")]
   tempDataSync$streamTempPredUCI[i] <- summary.stats$quantiles[paste0('stream.mu[',i,']') , c("97.5%")]
 }
+
+
 
 ########## Check model fit #############
 tempDataSync$err <- tempDataSync$streamTempPred - tempDataSync$temp
@@ -346,8 +374,8 @@ sites <- unique(tempDataSync$site)
 
 for(i in 1:length(unique(tempDataSync$site))){
   dataSite <- filter(tempDataSync, filter = site == sites[i])
-  foo <- ggplot(dataSite, aes(dOY, temp)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point(colour = 'blue') + geom_line(colour = 'blue') + geom_point(aes(dOY, streamTempPred), colour = 'red', size=1) + geom_line(aes(dOY, streamTempPred), colour = 'red', size=0.1) + geom_point(aes(dOY, airTemp), colour='black', size=0.1) + ggtitle(unique(tempDataSync$fsite)[i]) + facet_wrap(~year)
-  ggsave(filename=paste0(dataLocalDir,'/', 'plots/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=8,height=5, units='in' )
+  foo <- ggplot(dataSite, aes(dOY, temp)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point(colour = 'blue') + geom_line(colour = 'blue') + geom_point(aes(dOY, streamTempPred), colour = 'red', size=1) + geom_line(aes(dOY, streamTempPred), colour = 'red', size=0.1) + geom_point(aes(dOY, airTemp), colour='black', size=1) + ggtitle(unique(tempDataSync$fsite)[i]) + facet_wrap(~year) + xlab(label = 'Day of the year') + ylab('Temperature (C)')
+  ggsave(filename=paste0(dataLocalDir,'/', 'plots/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=6,height=4, units='in' )
 } # surprisingly fast
 
 
