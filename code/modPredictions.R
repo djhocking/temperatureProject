@@ -58,57 +58,97 @@ covariateDataBP <- left_join(covariateData, springFallBPs, by=c('site', 'year'))
 
 # temp hack
 climateData$site <- as.character(climateData$site)
-tempDataSync <- left_join(climateData, covariateData, by=c('site'))
+tempFullSync <- left_join(climateData, covariateData, by=c('site'))
 
 # Clip to syncronized season
-# tempDataSync <- filter(tempDataBP, dOY >= finalSpringBP & dOY <= finalFallBP)
+# tempFullSync <- filter(tempDataBP, dOY >= finalSpringBP & dOY <= finalFallBP)
 
 # temp hack
-tempDataSync <- filter(tempDataSync, dOY >= 50 & dOY <= 350)
-tempDataSync$Latitude <- tempDataSync$Latitude.x
-tempDataSync$Longitude <- tempDataSync$Longitude.x
+tempFullSync <- filter(tempFullSync, dOY >= 50 & dOY <= 350)
+tempFullSync$Latitude <- tempFullSync$Latitude.x
+tempFullSync$Longitude <- tempFullSync$Longitude.x
 ##################
 
 # Order by group and date
-tempDataSync <- tempDataSync[order(tempDataSync$site,tempDataSync$year,tempDataSync$dOY),]
+tempFullSync <- tempFullSync[order(tempFullSync$site,tempFullSync$year,tempFullSync$dOY),]
 
-# For checking the order of tempDataSync
-tempDataSync$count <- 1:length(tempDataSync$year)
+# For checking the order of tempFullSync
+tempFullSync$count <- 1:length(tempFullSync$year)
 
-tempDataSync <- tempDataSync[order(tempDataSync$count),] # just to make sure tempDataSync is ordered for the slide function
+tempFullSync <- tempFullSync[order(tempFullSync$count),] # just to make sure tempFullSync is ordered for the slide function
 
 # airTemp
-tempDataSync <- slide(tempDataSync, Var = "airTemp", GroupVar = "site", slideBy = -1, NewVar='airTempLagged1')
-tempDataSync <- slide(tempDataSync, Var = "airTemp", GroupVar = "site", slideBy = -2, NewVar='airTempLagged2')
+tempFullSync <- slide(tempFullSync, Var = "airTemp", GroupVar = "site", slideBy = -1, NewVar='airTempLagged1')
+tempFullSync <- slide(tempFullSync, Var = "airTemp", GroupVar = "site", slideBy = -2, NewVar='airTempLagged2')
 
 # prcp
-tempDataSync <- slide(tempDataSync, Var = "prcp", GroupVar = "site", slideBy = -1, NewVar='prcpLagged1')
-tempDataSync <- slide(tempDataSync, Var = "prcp", GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
-tempDataSync <- slide(tempDataSync, Var = "prcp", GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
+tempFullSync <- slide(tempFullSync, Var = "prcp", GroupVar = "site", slideBy = -1, NewVar='prcpLagged1')
+tempFullSync <- slide(tempFullSync, Var = "prcp", GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
+tempFullSync <- slide(tempFullSync, Var = "prcp", GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
 
 
 # Make dataframe with just variables for modeling and order before standardizing
-tempDataSync <- tempDataSync[ , c("date", "year", "site", "date",  "FEATUREID", "HUC4", "HUC8", "HUC12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  "finalSpringBP", "finalFallBP", "agency", ""date","fsite", "fyear", "AgencyID",
+tempFullSync <- tempFullSync[ , c("year", "site", "date",  "FEATUREID", "HUC4", "HUC8", "HUC12", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  "finalSpringBP", "finalFallBP", "agency", ""date","fsite", "fyear", "AgencyID","temp", 
 
-summary(tempDataSync)
-dim(tempDataSync)
-tempDataSync <- na.omit(tempDataSync) ####### Change this so don't take out NA in stream temperature
-dim(tempDataSync)
+summary(tempFullSync)
+dim(tempFullSync)
+#tempFullSync <- na.omit(tempFullSync) ####### Change this so don't take out NA in stream temperature
+dim(tempFullSync)
 
 
 # Standardize for Analysis
 
-tempDataSyncS <- cbind(tempDataSync[ ,c(1:15)],
-                       apply(X = tempDataSync[ ,16:dim(tempDataSync)[2]], MARGIN=2,
+tempFullSyncS <- cbind(tempFullSync[ ,c(1:9)],
+                       apply(X = tempFullSync[ ,10:dim(tempFullSync)[2]], MARGIN=2,
                              FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
 
 
+tempFullSyncS[is.na(tempFullSyncS)] <- 0
+
+fixEf <- modSummary@fixEf[ ,"Mean"]
+names(fixEf) <- row.names(modSummary@fixEf)
+
+tempFullSync$tempPredicted <- modSummary@fixEf["intercept", "Mean"] + 
+  modSummary@fixEf["lat", "Mean"]*tempFullSyncS$Latitude + 
+  modSummary@fixEf["lon", "Mean"]*tempFullSyncS$Longitude + 
+  modSummary@fixEf["airTemp", "Mean"]*tempFullSyncS$airTemp + 
+  modSummary@fixEf["airTempLag1", "Mean"]*tempFullSyncS$airTempLagged1 + 
+  modSummary@fixEf["airTempLag2", "Mean"]*tempFullSyncS$airTempLagged2 + 
+  modSummary@fixEf["precip", "Mean"]*tempFullSyncS$prcp + 
+  modSummary@fixEf["precipLag1", "Mean"]*tempFullSyncS$prcpLagged1 + 
+  modSummary@fixEf["precipLag2", "Mean"]*tempFullSyncS$prcpLagged2 + 
+  modSummary@fixEf["drainage", "Mean"]*tempFullSyncS$TotDASqKM + 
+  modSummary@fixEf["forest", "Mean"]*tempFullSyncS$Forest + 
+  modSummary@fixEf["elevation", "Mean"]*tempFullSyncS$ReachElevationM + 
+  modSummary@fixEf["coarseness", "Mean"]*tempFullSyncS$SurficialCoarseC + 
+  modSummary@fixEf["wetland", "Mean"]*tempFullSyncS$CONUSWetland + 
+  modSummary@fixEf["impoundments", "Mean"]*tempFullSyncS$ImpoundmentsAllSqKM + 
+  modSummary@fixEf["swe", "Mean"]*tempFullSyncS$swe + 
+  modSummary@fixEf["dOY", "Mean"]*tempFullSyncS$dOY + 
+  modSummary@fixEf["dOY2", "Mean"]*tempFullSyncS$dOY^2 + 
+  modSummary@fixEf["dOY3", "Mean"]*tempFullSyncS$dOY^3
 
 
 
 
+# plot observed and predicte vs day of the year for all sites
+sites <- unique(tempDataSync$site)
+
+for(i in 1:length(unique(tempDataSync$site))){
+  dataSite <- filter(tempDataSync, filter = site == sites[i])
+  foo <- ggplot(dataSite, aes(dOY, temp)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point(colour = 'blue') + geom_line(colour = 'blue') + geom_point(aes(dOY, streamTempPred), colour = 'red', size=1) + geom_line(aes(dOY, streamTempPred), colour = 'red', size=0.1) + geom_point(aes(dOY, airTemp), colour='black', size=1) + ggtitle(unique(tempDataSync$fsite)[i]) + facet_wrap(~year) + xlab(label = 'Day of the year') + ylab('Temperature (C)')
+  ggsave(filename=paste0(dataLocalDir,'/', 'plots/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=6,height=4, units='in' )
+} # surprisingly fast
 
 
+# plot observed and predicte vs day of the year for all sites
+sites <- unique(tempFullSync$site)
+
+for(i in 1:length(unique(tempFullSync$site))){
+  dataSite <- filter(tempFullSync, filter = site == sites[i])
+  foo <- ggplot(dataSite, aes(dOY, tempPredicted)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point(colour = 'blue') + geom_line(colour = 'blue') + ggtitle(unique(tempFullSync$site)[i]) + facet_wrap(~year) + xlab(label = 'Day of the year') + ylab('Temperature (C)')
+  ggsave(filename=paste0(dataLocalDir,'/', 'plots/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=6,height=4, units='in' )
+} # surprisingly fast
 
 
 
