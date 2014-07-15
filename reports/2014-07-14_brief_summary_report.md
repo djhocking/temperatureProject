@@ -22,7 +22,7 @@ We are also investigating further enhancements to the model and incorporation of
 Examples of observed (blue) and predicted (red) stream temperature compared with air temperature (black).
 
 
-![plot of chunk unnamed-chunk-3](figure/unnamed-chunk-3.png) 
+![plot of chunk unnamed-chunk-3](figures/unnamed-chunk-3.png) 
 
 
 
