@@ -8,8 +8,8 @@ library(DataCombine) # for the slide function
 #setwd('C:/Users/dhocking/Documents/temperatureProject/')
 
 #baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
-#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
-baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+#baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 setwd(baseDir)
 
 dataInDir <- paste0(baseDir, 'dataIn/')
@@ -114,6 +114,105 @@ load(paste0(dataOutDir, 'tempDataSync.RData'))
 sites <- unique(tempFullSync$site)
 BSite <- modSummary@BSite
 BYear <- modSummary@BYear
+
+
+# Split data by site-year then do predictions for those with observed stream temperature data and those without, then recombine. The problem is that sites outside of the years observed won't get the site-specific values and years with data but at different sites won't get the site-specific data.
+tempFullSyncS$siteYear <- paste0(tempFullSyncS$site, tempFullSyncS$year)
+tempDataSyncS$siteYear <- paste0(tempDataSyncS$site, tempDataSyncS$year)
+
+tempFullSiteYearS <- tempFullSyncS[which(tempFullSyncS$siteYear %in% unique(tempDataSyncS$siteYear)), ]
+tempFullMeanS <- subset(tempFullSyncS, !(tempFullSyncS$siteYear %in% unique(tempDataSyncS$siteYear)))
+
+# this will work fo MA because not predicting to any completely new sites
+tempFullSiteYearS <- filter(tempFullSyncS, filter = year %in% unique(tempDataSyncS$year))
+tempFullSiteS <- filter(tempFullSyncS, filter = !(year %in% unique(tempDataSyncS$year)))
+
+
+system.time(tempFullSiteYearS$tempPredicted <- modSummary@fixEf["intercept", "Mean"] +
+  BSite[tempFullSiteYearS$site, "intercept.site"] + # check
+  BYear[tempFullSiteYearS$year, "intercept.year"] + # check
+  modSummary@fixEf["lat", "Mean"]*tempFullSiteYearS$Latitude + 
+  modSummary@fixEf["lon", "Mean"]*tempFullSiteYearS$Longitude + 
+  (BSite[tempFullSiteYearS$site, "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteYearS$airTemp + 
+  (BSite[tempFullSiteYearS$site, "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSiteYearS$airTempLagged1 + 
+  (BSite[tempFullSiteYearS$site, "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSiteYearS$airTempLagged2 + 
+  (BSite[tempFullSiteYearS$site, "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSiteYearS$prcp + 
+  (BSite[tempFullSiteYearS$site, "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSiteYearS$prcpLagged1 + 
+  (BSite[tempFullSiteYearS$site, "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSiteYearS$prcpLagged2 + 
+  (BSite[tempFullSiteYearS$site, "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSiteYearS$TotDASqKM + 
+  (BSite[tempFullSiteYearS$site, "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSiteYearS$Forest + 
+  (BSite[tempFullSiteYearS$site, "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSiteYearS$ReachElevationM + 
+  (BSite[tempFullSiteYearS$site, "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSiteYearS$SurficialCoarseC + 
+  (BSite[tempFullSiteYearS$site, "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteYearS$CONUSWetland + 
+  (BSite[tempFullSiteYearS$site, "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteYearS$ImpoundmentsAllSqKM + 
+  (BSite[tempFullSiteYearS$site, "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteYearS$swe + 
+  (BYear[tempFullSiteYearS$year, "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSiteYearS$dOY + 
+  (BYear[tempFullSiteYearS$year, "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*tempFullSiteYearS$dOY^2 + 
+  (BYear[tempFullSiteYearS$year, "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*tempFullSiteYearS$dOY^3)
+
+
+
+
+
+
+tempFullSiteYearS$tempPredicted <- NA
+pb <- txtProgressBar(min = 0, max = dim(tempFullSyncS)[1], style = 3)
+for(i in 1:dim(tempFullSyncS)[1]){
+  tempFullSiteYearS$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] +
+      BSite[tempFullSiteYearS$site[i], "intercept.site"] + # check
+      BYear[tempFullSiteYearS$year[i], "intercept.year"] + # check
+      modSummary@fixEf["lat", "Mean"]*tempFullSiteYearS$Latitude[i] + 
+      modSummary@fixEf["lon", "Mean"]*tempFullSiteYearS$Longitude[i] + 
+      (BSite[tempFullSiteYearS$site[i], "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteYearS$airTemp[i] + 
+      (BSite[tempFullSiteYearS$site[i], "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSiteYearS$airTempLagged1[i] + 
+      (BSite[tempFullSiteYearS$site[i], "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSiteYearS$airTempLagged2[i] + 
+      (BSite[tempFullSiteYearS$site[i], "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSiteYearS$prcp[i] + 
+      (BSite[tempFullSiteYearS$site[i], "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSiteYearS$prcpLagged1[i] + 
+      (BSite[tempFullSiteYearS$site[i], "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSiteYearS$prcpLagged2[i] + 
+      (BSite[tempFullSiteYearS$site[i], "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSiteYearS$TotDASqKM[i] + 
+      (BSite[tempFullSiteYearS$site[i], "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSiteYearS$Forest[i] + 
+      (BSite[tempFullSiteYearS$site[i], "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSiteYearS$ReachElevationM[i] + 
+      (BSite[tempFullSiteYearS$site[i], "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSiteYearS$SurficialCoarseC[i] + 
+      (BSite[tempFullSiteYearS$site[i], "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteYearS$CONUSWetland[i] + 
+      (BSite[tempFullSiteYearS$site[i], "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteYearS$ImpoundmentsAllSqKM[i] + 
+      (BSite[tempFullSiteYearS$site[i], "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteYearS$swe[i] + 
+      (BYear[tempFullSiteYearS$year[i], "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSiteYearS$dOY[i] + 
+      (BYear[tempFullSiteYearS$year[i], "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*tempFullSiteYearS$dOY[i]^2 + 
+      (BYear[tempFullSiteYearS$year[i], "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*tempFullSiteYearS$dOY[i]^3
+  
+  setTxtProgressBar(pb, i)
+}
+close(pb)
+
+
+tempFullSiteS$tempPredicted <- NA
+pb <- txtProgressBar(min = 0, max = dim(tempFullSyncS)[1], style = 3)
+for(i in 1:dim(tempFullSyncS)[1]){
+  tempFullSiteS$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] +
+    BSite[tempFullSiteS$site[i], "intercept.site"] + # check
+    BYear[tempFullSiteS$year[i], "intercept.year"] + # check
+    modSummary@fixEf["lat", "Mean"]*tempFullSiteS$Latitude[i] + 
+    modSummary@fixEf["lon", "Mean"]*tempFullSiteS$Longitude[i] + 
+    (BSite[tempFullSiteS$site[i], "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteS$airTemp[i] + 
+    (BSite[tempFullSiteS$site[i], "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSiteS$airTempLagged1[i] + 
+    (BSite[tempFullSiteS$site[i], "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSiteS$airTempLagged2[i] + 
+    (BSite[tempFullSiteS$site[i], "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSiteS$prcp[i] + 
+    (BSite[tempFullSiteS$site[i], "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSiteS$prcpLagged1[i] + 
+    (BSite[tempFullSiteS$site[i], "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSiteS$prcpLagged2[i] + 
+    (BSite[tempFullSiteS$site[i], "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSiteS$TotDASqKM[i] + 
+    (BSite[tempFullSiteS$site[i], "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSiteS$Forest[i] + 
+    (BSite[tempFullSiteS$site[i], "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSiteS$ReachElevationM[i] + 
+    (BSite[tempFullSiteS$site[i], "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSiteS$SurficialCoarseC[i] + 
+    (BSite[tempFullSiteS$site[i], "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteS$CONUSWetland[i] + 
+    (BSite[tempFullSiteS$site[i], "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteS$ImpoundmentsAllSqKM[i] + 
+    (BSite[tempFullSiteS$site[i], "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteS$swe[i] + 
+    modSummary@fixEf["dOY", "Mean"]*tempFullSiteS$dOY[i] + 
+    modSummary@fixEf["dOY2", "Mean"]*tempFullSiteS$dOY[i]^2 + 
+    modSummary@fixEf["dOY3", "Mean"]*tempFullSiteS$dOY[i]^3
+  
+  setTxtProgressBar(pb, i)
+}
+close(pb)
 
 # Make predictions
 # this will be incredibly slow but I'm not sure of a better way to do this and incorporate the random effects unless it's done in JAGS but then it will have to be done for every iteration which will be time and memory intensive
