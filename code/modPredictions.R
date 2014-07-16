@@ -8,8 +8,8 @@ library(DataCombine) # for the slide function
 #setwd('C:/Users/dhocking/Documents/temperatureProject/')
 
 #baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
-baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
-#baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
+#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 setwd(baseDir)
 
 dataInDir <- paste0(baseDir, 'dataIn/')
@@ -109,8 +109,8 @@ fixEf <- modSummary@fixEf[ ,"Mean"]
 names(fixEf) <- row.names(modSummary@fixEf)
 
 load(paste0(dataOutDir, 'tempDataSync.RData'))
-tempFullSync <- tempFullSync[which(tempFullSync$site %in% unique(tempDataSync$site)), ]
-tempFullSyncS <- tempFullSync[which(tempFullSyncS$site %in% unique(tempDataSync$site)), ]
+#tempFullSync <- tempFullSync[which(tempFullSync$site %in% unique(tempDataSync$site)), ]
+#tempFullSyncS <- tempFullSync[which(tempFullSyncS$site %in% unique(tempDataSync$site)), ]
 sites <- unique(tempFullSync$site)
 BSite <- modSummary@BSite
 BYear <- modSummary@BYear
@@ -118,11 +118,10 @@ BYear <- modSummary@BYear
 # Make predictions
 # this will be incredibly slow but I'm not sure of a better way to do this and incorporate the random effects unless it's done in JAGS but then it will have to be done for every iteration which will be time and memory intensive
 tempFullSync$tempPredicted <- NA
-system.time(
+
 pb <- txtProgressBar(min = 0, max = dim(tempFullSyncS)[1], style = 3)
 for(i in 1:dim(tempFullSyncS)[1]){
-  if(tempFullSyncS$site[i] %in% unique(tempDataSyncS$site)){
-    if(tempFullSyncS$year[i] %in% unique(tempDataSyncS$year)){ # if from a site and year with data: use random site and year effects
+  if(tempFullSyncS$site[i] %in% unique(tempDataSyncS$site) & tempFullSyncS$year[i] %in% unique(tempDataSyncS$year)){ # if from a site and year with data: use random site and year effects
       tempFullSync$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] +
         BSite[tempFullSyncS$site[i], "intercept.site"] + # check
         BYear[tempFullSyncS$year[i], "intercept.year"] + # check
@@ -144,7 +143,8 @@ for(i in 1:dim(tempFullSyncS)[1]){
         (BYear[tempFullSyncS$year[i], "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSyncS$dOY[i] + 
         (BYear[tempFullSyncS$year[i], "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*tempFullSyncS$dOY[i]^2 + 
         (BYear[tempFullSyncS$year[i], "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*tempFullSyncS$dOY[i]^3
-    } else { # if from a site with data but not from a year with data just use the random site intercept and slopes and mean year effects
+    } else {
+        if(tempFullSyncS$site[i] %in% unique(tempDataSyncS$site)){# if from a site with data but not from a year with data just use the random site intercept and slopes and mean year effects
       tempFullSync$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] +
         BSite[tempFullSyncS$site[i], "intercept.site"] + # check
         modSummary@fixEf["lat", "Mean"]*tempFullSyncS$Latitude[i] + 
@@ -212,7 +212,7 @@ for(i in 1:dim(tempFullSyncS)[1]){
   setTxtProgressBar(pb, i)
 }
 close(pb)
-)
+}
 
 # plot observed and predicte vs day of the year for all sites
 sites <- unique(as.character(tempFullSync$site))
