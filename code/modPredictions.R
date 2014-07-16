@@ -98,9 +98,20 @@ dim(tempFullSync)
 
 # Standardize for Analysis
 
-tempFullSyncS <- cbind(tempFullSync[ ,c(1:9)],
-                       apply(X = tempFullSync[ ,10:dim(tempFullSync)[2]], MARGIN=2,
-                             FUN = function(x){(x-mean(x, na.rm=TRUE)) / sd(x, na.rm=TRUE)}))
+stdCovs <- function(x, y, varNames){
+  xStd <- as.data.frame(matrix(NA, dim(x)[1], length(varNames)))
+  names(xStd) <- varNames
+  for(i in 1:length(varNames)){
+    xStd[ , varNames[i]] <- (x[ , varNames[i]] - mean(y[ , varNames[i]], na.rm=T)) / sd(y[ , varNames[i]], na.rm=T)
+  }
+  return(xStd)
+}
+
+load(paste0(dataOutDir, 'tempDataSync.RData'))
+varNames1 <- names(tempFullSync[ ,8:dim(tempFullSync)[2]])
+
+tempFullStd <- stdCovs(tempFullSync, tempDataSync, varNames1)
+tempFullSyncS <- cbind(tempFullSync[ ,c(1:7)], tempFullStd)
 
 summary(tempFullSyncS)
 tempFullSyncS[is.na(tempFullSyncS)] <- 0
@@ -108,12 +119,13 @@ tempFullSyncS[is.na(tempFullSyncS)] <- 0
 fixEf <- modSummary@fixEf[ ,"Mean"]
 names(fixEf) <- row.names(modSummary@fixEf)
 
-load(paste0(dataOutDir, 'tempDataSync.RData'))
 #tempFullSync <- tempFullSync[which(tempFullSync$site %in% unique(tempDataSync$site)), ]
 #tempFullSyncS <- tempFullSync[which(tempFullSyncS$site %in% unique(tempDataSync$site)), ]
 sites <- unique(tempFullSync$site)
 BSite <- modSummary@BSite
 BYear <- modSummary@BYear
+
+tempFullSyncS$cYear <- as.character(tempFullSyncS$year)
 
 
 # Split data by site-year then do predictions for those with observed stream temperature data and those without, then recombine. The problem is that sites outside of the years observed won't get the site-specific values and years with data but at different sites won't get the site-specific data.
@@ -129,8 +141,8 @@ tempFullSiteS <- filter(tempFullSyncS, filter = !(year %in% unique(tempDataSyncS
 
 
 system.time(tempFullSiteYearS$tempPredicted <- modSummary@fixEf["intercept", "Mean"] +
-  BSite[tempFullSiteYearS$site, "intercept.site"] + # check
-  BYear[tempFullSiteYearS$year, "intercept.year"] + # check
+  BSite[tempFullSiteYearS$site, "intercept.site"] + 
+  BYear[tempFullSiteYearS$cYear, "intercept.year"] + 
   modSummary@fixEf["lat", "Mean"]*tempFullSiteYearS$Latitude + 
   modSummary@fixEf["lon", "Mean"]*tempFullSiteYearS$Longitude + 
   (BSite[tempFullSiteYearS$site, "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteYearS$airTemp + 
@@ -146,191 +158,107 @@ system.time(tempFullSiteYearS$tempPredicted <- modSummary@fixEf["intercept", "Me
   (BSite[tempFullSiteYearS$site, "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteYearS$CONUSWetland + 
   (BSite[tempFullSiteYearS$site, "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteYearS$ImpoundmentsAllSqKM + 
   (BSite[tempFullSiteYearS$site, "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteYearS$swe + 
-  (BYear[tempFullSiteYearS$year, "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSiteYearS$dOY + 
-  (BYear[tempFullSiteYearS$year, "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*tempFullSiteYearS$dOY^2 + 
-  (BYear[tempFullSiteYearS$year, "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*tempFullSiteYearS$dOY^3)
+  (BYear[tempFullSiteYearS$cYear, "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSiteYearS$dOY + 
+  (BYear[tempFullSiteYearS$cYear, "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*((tempFullSiteYearS$dOY)^2) + 
+  (BYear[tempFullSiteYearS$cYear, "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*((tempFullSiteYearS$dOY)^3))
 
 
+tempFullSiteS$tempPredicted <- modSummary@fixEf["intercept", "Mean"] +
+  BSite[tempFullSiteS$site, "intercept.site"] + 
+  modSummary@fixEf["lat", "Mean"]*tempFullSiteS$Latitude + 
+  modSummary@fixEf["lon", "Mean"]*tempFullSiteS$Longitude + 
+  (BSite[tempFullSiteS$site, "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteS$airTemp + 
+  (BSite[tempFullSiteS$site, "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSiteS$airTempLagged1 + 
+  (BSite[tempFullSiteS$site, "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSiteS$airTempLagged2 + 
+  (BSite[tempFullSiteS$site, "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSiteS$prcp + 
+  (BSite[tempFullSiteS$site, "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSiteS$prcpLagged1 + 
+  (BSite[tempFullSiteS$site, "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSiteS$prcpLagged2 + 
+  (BSite[tempFullSiteS$site, "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSiteS$TotDASqKM + 
+  (BSite[tempFullSiteS$site, "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSiteS$Forest + 
+  (BSite[tempFullSiteS$site, "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSiteS$ReachElevationM + 
+  (BSite[tempFullSiteS$site, "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSiteS$SurficialCoarseC + 
+  (BSite[tempFullSiteS$site, "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteS$CONUSWetland + 
+  (BSite[tempFullSiteS$site, "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteS$ImpoundmentsAllSqKM + 
+  (BSite[tempFullSiteS$site, "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteS$swe + 
+  modSummary@fixEf["dOY", "Mean"]*tempFullSiteS$dOY + 
+  modSummary@fixEf["dOY2", "Mean"]*((tempFullSiteS$dOY)^2) + 
+  modSummary@fixEf["dOY3", "Mean"]*((tempFullSiteS$dOY)^3)
+
+tempFullS <- rbind(tempFullSiteYearS, tempFullSiteS)
+
+tempFull <- left_join(tempFullSync, tempFullS[ , c("year", "site", "date", "tempPredicted")], by = c("year", "site", "date")) 
 
 
+# plot observed and predicte vs day of the year for all sites in all years
+sites <- unique(as.character(tempFull$site))
 
-
-tempFullSiteYearS$tempPredicted <- NA
-pb <- txtProgressBar(min = 0, max = dim(tempFullSyncS)[1], style = 3)
-for(i in 1:dim(tempFullSyncS)[1]){
-  tempFullSiteYearS$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] +
-      BSite[tempFullSiteYearS$site[i], "intercept.site"] + # check
-      BYear[tempFullSiteYearS$year[i], "intercept.year"] + # check
-      modSummary@fixEf["lat", "Mean"]*tempFullSiteYearS$Latitude[i] + 
-      modSummary@fixEf["lon", "Mean"]*tempFullSiteYearS$Longitude[i] + 
-      (BSite[tempFullSiteYearS$site[i], "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteYearS$airTemp[i] + 
-      (BSite[tempFullSiteYearS$site[i], "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSiteYearS$airTempLagged1[i] + 
-      (BSite[tempFullSiteYearS$site[i], "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSiteYearS$airTempLagged2[i] + 
-      (BSite[tempFullSiteYearS$site[i], "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSiteYearS$prcp[i] + 
-      (BSite[tempFullSiteYearS$site[i], "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSiteYearS$prcpLagged1[i] + 
-      (BSite[tempFullSiteYearS$site[i], "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSiteYearS$prcpLagged2[i] + 
-      (BSite[tempFullSiteYearS$site[i], "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSiteYearS$TotDASqKM[i] + 
-      (BSite[tempFullSiteYearS$site[i], "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSiteYearS$Forest[i] + 
-      (BSite[tempFullSiteYearS$site[i], "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSiteYearS$ReachElevationM[i] + 
-      (BSite[tempFullSiteYearS$site[i], "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSiteYearS$SurficialCoarseC[i] + 
-      (BSite[tempFullSiteYearS$site[i], "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteYearS$CONUSWetland[i] + 
-      (BSite[tempFullSiteYearS$site[i], "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteYearS$ImpoundmentsAllSqKM[i] + 
-      (BSite[tempFullSiteYearS$site[i], "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteYearS$swe[i] + 
-      (BYear[tempFullSiteYearS$year[i], "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSiteYearS$dOY[i] + 
-      (BYear[tempFullSiteYearS$year[i], "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*tempFullSiteYearS$dOY[i]^2 + 
-      (BYear[tempFullSiteYearS$year[i], "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*tempFullSiteYearS$dOY[i]^3
-  
-  setTxtProgressBar(pb, i)
-}
-close(pb)
-
-
-tempFullSiteS$tempPredicted <- NA
-pb <- txtProgressBar(min = 0, max = dim(tempFullSyncS)[1], style = 3)
-for(i in 1:dim(tempFullSyncS)[1]){
-  tempFullSiteS$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] +
-    BSite[tempFullSiteS$site[i], "intercept.site"] + # check
-    BYear[tempFullSiteS$year[i], "intercept.year"] + # check
-    modSummary@fixEf["lat", "Mean"]*tempFullSiteS$Latitude[i] + 
-    modSummary@fixEf["lon", "Mean"]*tempFullSiteS$Longitude[i] + 
-    (BSite[tempFullSiteS$site[i], "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteS$airTemp[i] + 
-    (BSite[tempFullSiteS$site[i], "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSiteS$airTempLagged1[i] + 
-    (BSite[tempFullSiteS$site[i], "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSiteS$airTempLagged2[i] + 
-    (BSite[tempFullSiteS$site[i], "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSiteS$prcp[i] + 
-    (BSite[tempFullSiteS$site[i], "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSiteS$prcpLagged1[i] + 
-    (BSite[tempFullSiteS$site[i], "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSiteS$prcpLagged2[i] + 
-    (BSite[tempFullSiteS$site[i], "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSiteS$TotDASqKM[i] + 
-    (BSite[tempFullSiteS$site[i], "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSiteS$Forest[i] + 
-    (BSite[tempFullSiteS$site[i], "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSiteS$ReachElevationM[i] + 
-    (BSite[tempFullSiteS$site[i], "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSiteS$SurficialCoarseC[i] + 
-    (BSite[tempFullSiteS$site[i], "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteS$CONUSWetland[i] + 
-    (BSite[tempFullSiteS$site[i], "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteS$ImpoundmentsAllSqKM[i] + 
-    (BSite[tempFullSiteS$site[i], "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteS$swe[i] + 
-    modSummary@fixEf["dOY", "Mean"]*tempFullSiteS$dOY[i] + 
-    modSummary@fixEf["dOY2", "Mean"]*tempFullSiteS$dOY[i]^2 + 
-    modSummary@fixEf["dOY3", "Mean"]*tempFullSiteS$dOY[i]^3
-  
-  setTxtProgressBar(pb, i)
-}
-close(pb)
-
-# Make predictions
-# this will be incredibly slow but I'm not sure of a better way to do this and incorporate the random effects unless it's done in JAGS but then it will have to be done for every iteration which will be time and memory intensive
-tempFullSync$tempPredicted <- NA
-
-pb <- txtProgressBar(min = 0, max = dim(tempFullSyncS)[1], style = 3)
-for(i in 1:dim(tempFullSyncS)[1]){
-  if(tempFullSyncS$site[i] %in% unique(tempDataSyncS$site) & tempFullSyncS$year[i] %in% unique(tempDataSyncS$year)){ # if from a site and year with data: use random site and year effects
-      tempFullSync$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] +
-        BSite[tempFullSyncS$site[i], "intercept.site"] + # check
-        BYear[tempFullSyncS$year[i], "intercept.year"] + # check
-        modSummary@fixEf["lat", "Mean"]*tempFullSyncS$Latitude[i] + 
-        modSummary@fixEf["lon", "Mean"]*tempFullSyncS$Longitude[i] + 
-        (BSite[tempFullSyncS$site[i], "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSyncS$airTemp[i] + 
-        (BSite[tempFullSyncS$site[i], "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSyncS$airTempLagged1[i] + 
-        (BSite[tempFullSyncS$site[i], "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSyncS$airTempLagged2[i] + 
-        (BSite[tempFullSyncS$site[i], "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSyncS$prcp[i] + 
-        (BSite[tempFullSyncS$site[i], "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSyncS$prcpLagged1[i] + 
-        (BSite[tempFullSyncS$site[i], "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSyncS$prcpLagged2[i] + 
-        (BSite[tempFullSyncS$site[i], "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSyncS$TotDASqKM[i] + 
-        (BSite[tempFullSyncS$site[i], "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSyncS$Forest[i] + 
-        (BSite[tempFullSyncS$site[i], "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSyncS$ReachElevationM[i] + 
-        (BSite[tempFullSyncS$site[i], "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSyncS$SurficialCoarseC[i] + 
-        (BSite[tempFullSyncS$site[i], "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSyncS$CONUSWetland[i] + 
-        (BSite[tempFullSyncS$site[i], "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSyncS$ImpoundmentsAllSqKM[i] + 
-        (BSite[tempFullSyncS$site[i], "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSyncS$swe[i] + 
-        (BYear[tempFullSyncS$year[i], "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSyncS$dOY[i] + 
-        (BYear[tempFullSyncS$year[i], "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*tempFullSyncS$dOY[i]^2 + 
-        (BYear[tempFullSyncS$year[i], "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*tempFullSyncS$dOY[i]^3
-    } else {
-        if(tempFullSyncS$site[i] %in% unique(tempDataSyncS$site)){# if from a site with data but not from a year with data just use the random site intercept and slopes and mean year effects
-      tempFullSync$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] +
-        BSite[tempFullSyncS$site[i], "intercept.site"] + # check
-        modSummary@fixEf["lat", "Mean"]*tempFullSyncS$Latitude[i] + 
-        modSummary@fixEf["lon", "Mean"]*tempFullSyncS$Longitude[i] + 
-        (BSite[tempFullSyncS$site[i], "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSyncS$airTemp[i] + 
-        (BSite[tempFullSyncS$site[i], "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSyncS$airTempLagged1[i] + 
-        (BSite[tempFullSyncS$site[i], "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSyncS$airTempLagged2[i] + 
-        (BSite[tempFullSyncS$site[i], "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSyncS$prcp[i] + 
-        (BSite[tempFullSyncS$site[i], "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSyncS$prcpLagged1[i] + 
-        (BSite[tempFullSyncS$site[i], "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSyncS$prcpLagged2[i] + 
-        (BSite[tempFullSyncS$site[i], "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSyncS$TotDASqKM[i] + 
-        (BSite[tempFullSyncS$site[i], "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSyncS$Forest[i] + 
-        (BSite[tempFullSyncS$site[i], "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSyncS$ReachElevationM[i] + 
-        (BSite[tempFullSyncS$site[i], "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSyncS$SurficialCoarseC[i] + 
-        (BSite[tempFullSyncS$site[i], "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSyncS$CONUSWetland[i] + 
-        (BSite[tempFullSyncS$site[i], "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSyncS$ImpoundmentsAllSqKM[i] + 
-        (BSite[tempFullSyncS$site[i], "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSyncS$swe[i] + 
-        modSummary@fixEf["dOY", "Mean"]*tempFullSyncS$dOY[i] + 
-        modSummary@fixEf["dOY2", "Mean"]*tempFullSyncS$dOY[i]^2 + 
-        modSummary@fixEf["dOY3", "Mean"]*tempFullSyncS$dOY[i]^3
-    } else {
-      if(tempFullSyncS$year[i] %in% unique(tempDataSyncS$year)){ # if not from a site with data but from a year with data use the random year effects only
-        tempFullSync$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] + 
-          BSite[tempFullSyncS$site[i], "intercept.site"] + # check
-          modSummary@fixEf["lat", "Mean"]*tempFullSyncS$Latitude[i] + 
-          modSummary@fixEf["lon", "Mean"]*tempFullSyncS$Longitude[i] + 
-          modSummary@fixEf["airTemp", "Mean"]*tempFullSyncS$airTemp[i] + 
-          modSummary@fixEf["airTempLag1", "Mean"]*tempFullSyncS$airTempLagged1[i] + 
-          modSummary@fixEf["airTempLag2", "Mean"]*tempFullSyncS$airTempLagged2[i] + 
-          modSummary@fixEf["precip", "Mean"]*tempFullSyncS$prcp[i] + 
-          modSummary@fixEf["precipLag1", "Mean"]*tempFullSyncS$prcpLagged1[i] + 
-          modSummary@fixEf["precipLag2", "Mean"]*tempFullSyncS$prcpLagged2[i] + 
-          modSummary@fixEf["drainage", "Mean"]*tempFullSyncS$TotDASqKM[i] + 
-          modSummary@fixEf["forest", "Mean"]*tempFullSyncS$Forest[i] + 
-          modSummary@fixEf["elevation", "Mean"]*tempFullSyncS$ReachElevationM[i] + 
-          modSummary@fixEf["coarseness", "Mean"]*tempFullSyncS$SurficialCoarseC[i] + 
-          modSummary@fixEf["wetland", "Mean"]*tempFullSyncS$CONUSWetland[i] + 
-          modSummary@fixEf["impoundments", "Mean"]*tempFullSyncS$ImpoundmentsAllSqKM[i] + 
-          modSummary@fixEf["swe", "Mean"]*tempFullSyncS$swe[i] + 
-          (BYear[tempFullSyncS$year[i], "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSyncS$dOY[i] + 
-          (BYear[tempFullSyncS$year[i], "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*tempFullSyncS$dOY[i]^2 + 
-          (BYear[tempFullSyncS$year[i], "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*tempFullSyncS$dOY[i]^3
-    } else { # if not from a site or year with observed data just predict using the mean fixed effects
-      tempFullSync$tempPredicted[i] <- modSummary@fixEf["intercept", "Mean"] + 
-        modSummary@fixEf["lat", "Mean"]*tempFullSyncS$Latitude[i] + 
-        modSummary@fixEf["lon", "Mean"]*tempFullSyncS$Longitude[i] + 
-        modSummary@fixEf["airTemp", "Mean"]*tempFullSyncS$airTemp[i] + 
-        modSummary@fixEf["airTempLag1", "Mean"]*tempFullSyncS$airTempLagged1[i] + 
-        modSummary@fixEf["airTempLag2", "Mean"]*tempFullSyncS$airTempLagged2[i] + 
-        modSummary@fixEf["precip", "Mean"]*tempFullSyncS$prcp[i] + 
-        modSummary@fixEf["precipLag1", "Mean"]*tempFullSyncS$prcpLagged1[i] + 
-        modSummary@fixEf["precipLag2", "Mean"]*tempFullSyncS$prcpLagged2[i] + 
-        modSummary@fixEf["drainage", "Mean"]*tempFullSyncS$TotDASqKM[i] + 
-        modSummary@fixEf["forest", "Mean"]*tempFullSyncS$Forest[i] + 
-        modSummary@fixEf["elevation", "Mean"]*tempFullSyncS$ReachElevationM[i] + 
-        modSummary@fixEf["coarseness", "Mean"]*tempFullSyncS$SurficialCoarseC[i] + 
-        modSummary@fixEf["wetland", "Mean"]*tempFullSyncS$CONUSWetland[i] + 
-        modSummary@fixEf["impoundments", "Mean"]*tempFullSyncS$ImpoundmentsAllSqKM[i] + 
-        modSummary@fixEf["swe", "Mean"]*tempFullSyncS$swe[i] + 
-        modSummary@fixEf["dOY", "Mean"]*tempFullSyncS$dOY[i] + 
-        modSummary@fixEf["dOY2", "Mean"]*tempFullSyncS$dOY[i]^2 + 
-        modSummary@fixEf["dOY3", "Mean"]*tempFullSyncS$dOY[i]^3
-    }
-  }
-  setTxtProgressBar(pb, i)
-}
-close(pb)
-}
-
-# plot observed and predicte vs day of the year for all sites
-sites <- unique(as.character(tempFullSync$site))
-
-for(i in 1:length(unique(tempFullSync$site))){
-  dataSite <- filter(tempFullSync, filter = site == sites[i])
-  foo <- ggplot(dataSite, aes(dOY, tempPredicted)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point(colour = 'blue') + geom_line(colour = 'blue') + ggtitle(unique(tempFullSync$site)[i]) + facet_wrap(~year) + xlab(label = 'Day of the year') + ylab('Temperature (C)')
-  ggsave(filename=paste0(dataLocalDir,'/', 'plots/fullRecord/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=6,height=4, units='in' )
-} # surprisingly fast
+for(i in 1:length(unique(tempFull$site))){
+  dataSite <- filter(tempFull, filter = site == sites[i])
+  dataSiteObs <- filter(tempDataSync, filter = site == sites[i])
+  foo <- ggplot(dataSite, aes(dOY, tempPredicted)) + 
+    coord_cartesian(xlim = c(100, 300), ylim = c(0, 35)) + 
+    geom_point(data=dataSiteObs, aes(dOY, temp), colour='blue') +
+    geom_point(colour = 'red', size=1) + 
+    geom_line(colour = 'red', size=0.1) + 
+    geom_point(aes(dOY, airTemp), size=1) + 
+    ggtitle(unique(tempFullSync$site)[i]) + 
+    facet_wrap(~year) + 
+    xlab(label = 'Day of the year') + ylab('Temperature (C)') + 
+    theme(axis.text.x = element_text(angle = 45))
+  ggsave(filename=paste0(dataLocalDir,'/', 'plots/fullRecord/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=12,height=8, units='in' )
+} # surprisingly fast but wouldn't do for all catchments
 
 
 # plot observed and predicte vs day of the year for all sites
 sites <- unique(tempDataSync$site)
 
 for(i in 1:length(unique(tempDataSync$site))){
-  dataSite <- filter(tempDataSync, filter = site == sites[i])
-  foo <- ggplot(dataSite, aes(dOY, temp)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point(colour = 'blue') + geom_line(colour = 'blue') + geom_point(aes(dOY, streamTempPred), colour = 'red', size=1) + geom_line(aes(dOY, streamTempPred), colour = 'red', size=0.1) + geom_point(aes(dOY, airTemp), colour='black', size=1) + ggtitle(unique(tempDataSync$fsite)[i]) + facet_wrap(~year) + xlab(label = 'Day of the year') + ylab('Temperature (C)')
+  dataSiteObs <- filter(tempDataSync, filter = site == sites[i])
+  foo <- ggplot(dataSiteObs, aes(dOY, temp)) + coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + geom_point(colour = 'blue') + geom_line(colour = 'blue') + geom_point(aes(dOY, streamTempPred), colour = 'red', size=1) + geom_line(aes(dOY, streamTempPred), colour = 'red', size=0.1) + geom_point(aes(dOY, airTemp), colour='black', size=1) + ggtitle(unique(tempDataSync$fsite)[i]) + facet_wrap(~year) + xlab(label = 'Day of the year') + ylab('Temperature (C)')
   ggsave(filename=paste0(dataLocalDir,'/', 'plots/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=6,height=4, units='in' )
 } # surprisingly fast
 
+rmse(tempFullSync[!is.na(tempDataSync$temp), "temp"] - tempFullSync[!is.na(tempDataSync$temp), "tempPredicted"])
+############## Derived metrics ##########
+
+# Mean maximum daily mean temperature by site (over years)
+library(dplyr)
+by.site <- group_by(tempFullSync, site)
+by.site.year <- group_by(by.site, year, add = TRUE)
+max.t <- filter(by.site, streamTemp == max(streamTemp))
+summarise(max.t, mean(streamTemp)) # not needed - already max.t
+summarise(by.site.year, sd(mean(streamTemp))) # not working based on filter or grouping
+
+(max.t.site.year <- summarise(by.site.year, max(streamTemp)))
+names(max.t.site.year) <- c("site", "year", "streamTemp")
+max.t.site.year1 <- merge(as.data.frame(max.t.site.year), pred.t, by=c("site", "streamTemp"), all.x=T, all.y=F)
+
+ggplot(pred.t, aes(dOY.real, temp)) + geom_point(size=1, colour='black') + geom_point(aes(dOY.real, streamTemp), colour = 'red', size=0.75) + ylab(label="Stream temperature (C)") + xlab("Day of the year") + geom_point(data=max.t.site.year1, aes(dOY.real, streamTemp), colour = "green") + facet_grid(site ~ year) # max temp points all replicated on every panel
+
+# Number of days with stream temp > 20C
+days.20 <- summarise(by.site.year, days.20 = length(streamTemp >= 20))
+summarise(days.20, mean(days.20))
+
+ggplot(pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010), ], aes(dOY.real, streamTemp)) + 
+  geom_point(size=2, colour = "black") + geom_line(colour = 'black') +
+  geom_abline(intercept = 18, slope=0, colour='red') +
+  geom_point(data = pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010 & pred.t$streamTemp >= 18), ], aes(dOY.real, streamTemp), colour='red') +
+  xlab("Day of the year") +
+  ylab("Stream temperature (C)") #+ theme_classic()
+
+# Resistance to peak air temperature
+WB.2011.summer <- pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011 & pred.t$dOY.real >=145 & pred.t$dOY.real <= 275), ]
+sum(WB.2011.summer$airTemp - WB.2011.summer$streamTemp)
+
+ggplot(pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011), ], aes(dOY.real, streamTemp)) + 
+  geom_point(size=2, colour = "black") + geom_line(colour = 'black') +
+  geom_point(data=et2[which(et2$site == "WEST BROOK" & et2$year == 2011), ], aes(dOY, airTemp), colour = "red", size=2) + 
+  geom_line(data=et2[which(et2$site == "WEST BROOK" & et2$year == 2011), ], aes(dOY, airTemp), colour = "red") + 
+  geom_ribbon(data = pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011 & pred.t$dOY.real >=145 & pred.t$dOY.real <= 275), ], aes(x=dOY.real, ymin=streamTemp, ymax=airTemp), fill="dark grey", alpha=.5) +
+  xlab("Day of the year") +
+  ylab("Temperature (C)") #+ theme_classic()
+
+# Reset ggplot2 theme default to gray
+theme_set(theme_gray())
 
 
