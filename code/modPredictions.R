@@ -223,39 +223,38 @@ rmse(tempFull[which(!is.na(tempFull$temp)), "temp"] - tempFull[!is.na(tempFull$t
 ############## Derived metrics ##########
 
 # Mean maximum daily mean temperature by site (over years)
-library(dplyr)
-by.site <- group_by(tempFullSync, site)
+by.site <- group_by(tempFull, site)
 by.site.year <- group_by(by.site, year, add = TRUE)
-max.t <- filter(by.site, streamTemp == max(streamTemp))
-summarise(max.t, mean(streamTemp)) # not needed - already max.t
-summarise(by.site.year, sd(mean(streamTemp))) # not working based on filter or grouping
+maxTemp <- filter(by.site, tempPredicted == max(tempPredicted))
+maxTempSite <- summarise(maxTemp, mean(tempPredicted)) # not needed - already max.t
+#summarise(by.site.year, sd(mean(tempPredicted))) # not working based on filter or grouping
 
-(max.t.site.year <- summarise(by.site.year, max(streamTemp)))
-names(max.t.site.year) <- c("site", "year", "streamTemp")
-max.t.site.year1 <- merge(as.data.frame(max.t.site.year), pred.t, by=c("site", "streamTemp"), all.x=T, all.y=F)
+(maxTempSiteYear <- summarise(by.site.year, max(tempPredicted)))
+names(maxTempSiteYear) <- c("site", "year", "tempPredicted")
+maxTempSiteYear1 <- merge(as.data.frame(maxTempSiteYear), tempFull, by=c("site", "tempPredicted"), all.x=T, all.y=F)
 
-ggplot(pred.t, aes(dOY.real, temp)) + geom_point(size=1, colour='black') + geom_point(aes(dOY.real, streamTemp), colour = 'red', size=0.75) + ylab(label="Stream temperature (C)") + xlab("Day of the year") + geom_point(data=max.t.site.year1, aes(dOY.real, streamTemp), colour = "green") + facet_grid(site ~ year) # max temp points all replicated on every panel
+ggplot(tempFull, aes(dOY, temp)) + geom_point(size=1, colour='black') + geom_point(aes(dOY, tempPredicted), colour = 'red', size=0.75) + ylab(label="Stream temperature (C)") + xlab("Day of the year") + geom_point(data=maxTempSiteYear1, aes(dOY, tempPredicted), colour = "green") + facet_grid(site ~ year) # max temp points all replicated on every panel
 
 # Number of days with stream temp > 20C
-days.20 <- summarise(by.site.year, days.20 = length(streamTemp >= 20))
+days.20 <- summarise(by.site.year, days.20 = length(tempPredicted >= 20))
 summarise(days.20, mean(days.20))
 
-ggplot(pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010), ], aes(dOY.real, streamTemp)) + 
+ggplot(pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010), ], aes(dOY.real, tempPredicted)) + 
   geom_point(size=2, colour = "black") + geom_line(colour = 'black') +
   geom_abline(intercept = 18, slope=0, colour='red') +
-  geom_point(data = pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010 & pred.t$streamTemp >= 18), ], aes(dOY.real, streamTemp), colour='red') +
+  geom_point(data = pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010 & pred.t$tempPredicted >= 18), ], aes(dOY.real, tempPredicted), colour='red') +
   xlab("Day of the year") +
   ylab("Stream temperature (C)") #+ theme_classic()
 
 # Resistance to peak air temperature
 WB.2011.summer <- pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011 & pred.t$dOY.real >=145 & pred.t$dOY.real <= 275), ]
-sum(WB.2011.summer$airTemp - WB.2011.summer$streamTemp)
+sum(WB.2011.summer$airTemp - WB.2011.summer$tempPredicted)
 
-ggplot(pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011), ], aes(dOY.real, streamTemp)) + 
+ggplot(pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011), ], aes(dOY.real, tempPredicted)) + 
   geom_point(size=2, colour = "black") + geom_line(colour = 'black') +
   geom_point(data=et2[which(et2$site == "WEST BROOK" & et2$year == 2011), ], aes(dOY, airTemp), colour = "red", size=2) + 
   geom_line(data=et2[which(et2$site == "WEST BROOK" & et2$year == 2011), ], aes(dOY, airTemp), colour = "red") + 
-  geom_ribbon(data = pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011 & pred.t$dOY.real >=145 & pred.t$dOY.real <= 275), ], aes(x=dOY.real, ymin=streamTemp, ymax=airTemp), fill="dark grey", alpha=.5) +
+  geom_ribbon(data = pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011 & pred.t$dOY.real >=145 & pred.t$dOY.real <= 275), ], aes(x=dOY.real, ymin=tempPredicted, ymax=airTemp), fill="dark grey", alpha=.5) +
   xlab("Day of the year") +
   ylab("Temperature (C)") #+ theme_classic()
 
