@@ -22,6 +22,7 @@ source(paste0(baseDir, 'code/functions/dataIndexingFunctions.R'))
 
 load((paste0(dataOutDir, 'modSummary.RData')))
 load(paste0(dataLocalDir, 'daymetFullRecordObservedMASites.RData'))
+load(paste0(dataOutDir, 'tempDataSync.RData'))
 
 load(paste0(dataOutDir, 'springFallBreakpoints.RData'))
 
@@ -86,15 +87,15 @@ tempFullSync <- slide(tempFullSync, Var = "prcp", GroupVar = "site", slideBy = -
 tempFullSync <- slide(tempFullSync, Var = "prcp", GroupVar = "site", slideBy = -2, NewVar='prcpLagged2')
 tempFullSync <- slide(tempFullSync, Var = "prcp", GroupVar = "site", slideBy = -3, NewVar='prcpLagged3')
 
+tempFullSync <- left_join(tempFullSync, tempDataSync[ , c("site", "date", "temp")], by = c("site", "date"))
 
 # Make dataframe with just variables for modeling and order before standardizing
-tempFullSync <- tempFullSync[ , c("year", "site", "date",  "FEATUREID", "HUC4", "HUC8", "HUC12", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  "finalSpringBP", "finalFallBP", "agency", ""date","fsite", "fyear", "AgencyID","temp", 
+tempFullSync <- tempFullSync[ , c("year", "site", "date",  "FEATUREID", "HUC4", "HUC8", "HUC12", "temp", "Latitude", "Longitude", "airTemp", "airTempLagged1", "airTempLagged2", "prcp", "prcpLagged1", "prcpLagged2", "prcpLagged3", "dOY", "Forest", "Herbacious", "Agriculture", "Developed", "TotDASqKM", "ReachElevationM", "ImpoundmentsAllSqKM", "HydrologicGroupAB", "SurficialCoarseC", "CONUSWetland", "ReachSlopePCNT", "srad", "dayl", "swe")] #  "finalSpringBP", "finalFallBP", "agency", ""date","fsite", "fyear", "AgencyID" 
 
 summary(tempFullSync)
 dim(tempFullSync)
 #tempFullSync <- na.omit(tempFullSync) ####### Change this so don't take out NA in stream temperature
 dim(tempFullSync)
-
 
 # Standardize for Analysis
 
@@ -107,11 +108,10 @@ stdCovs <- function(x, y, varNames){
   return(xStd)
 }
 
-load(paste0(dataOutDir, 'tempDataSync.RData'))
-varNames1 <- names(tempFullSync[ ,8:dim(tempFullSync)[2]])
+varNames1 <- names(tempFullSync[ ,9:dim(tempFullSync)[2]])
 
 tempFullStd <- stdCovs(tempFullSync, tempDataSync, varNames1)
-tempFullSyncS <- cbind(tempFullSync[ ,c(1:7)], tempFullStd)
+tempFullSyncS <- cbind(tempFullSync[ ,c(1:8)], tempFullStd)
 
 summary(tempFullSyncS)
 tempFullSyncS[is.na(tempFullSyncS)] <- 0
@@ -139,50 +139,49 @@ tempFullMeanS <- subset(tempFullSyncS, !(tempFullSyncS$siteYear %in% unique(temp
 tempFullSiteYearS <- filter(tempFullSyncS, filter = year %in% unique(tempDataSyncS$year))
 tempFullSiteS <- filter(tempFullSyncS, filter = !(year %in% unique(tempDataSyncS$year)))
 
-
-system.time(tempFullSiteYearS$tempPredicted <- modSummary@fixEf["intercept", "Mean"] +
+tempFullSiteYearS$tempPredicted <- modSummary@fixEf["intercept", "Mean"] +
   BSite[tempFullSiteYearS$site, "intercept.site"] + 
   BYear[tempFullSiteYearS$cYear, "intercept.year"] + 
   modSummary@fixEf["lat", "Mean"]*tempFullSiteYearS$Latitude + 
   modSummary@fixEf["lon", "Mean"]*tempFullSiteYearS$Longitude + 
-  (BSite[tempFullSiteYearS$site, "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteYearS$airTemp + 
-  (BSite[tempFullSiteYearS$site, "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSiteYearS$airTempLagged1 + 
-  (BSite[tempFullSiteYearS$site, "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSiteYearS$airTempLagged2 + 
-  (BSite[tempFullSiteYearS$site, "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSiteYearS$prcp + 
-  (BSite[tempFullSiteYearS$site, "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSiteYearS$prcpLagged1 + 
-  (BSite[tempFullSiteYearS$site, "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSiteYearS$prcpLagged2 + 
-  (BSite[tempFullSiteYearS$site, "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSiteYearS$TotDASqKM + 
-  (BSite[tempFullSiteYearS$site, "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSiteYearS$Forest + 
-  (BSite[tempFullSiteYearS$site, "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSiteYearS$ReachElevationM + 
-  (BSite[tempFullSiteYearS$site, "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSiteYearS$SurficialCoarseC + 
-  (BSite[tempFullSiteYearS$site, "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteYearS$CONUSWetland + 
-  (BSite[tempFullSiteYearS$site, "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteYearS$ImpoundmentsAllSqKM + 
-  (BSite[tempFullSiteYearS$site, "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteYearS$swe + 
-  (BYear[tempFullSiteYearS$cYear, "dOY"] + modSummary@fixEf["dOY", "Mean"])*tempFullSiteYearS$dOY + 
-  (BYear[tempFullSiteYearS$cYear, "dOY2"] + modSummary@fixEf["dOY2", "Mean"])*((tempFullSiteYearS$dOY)^2) + 
-  (BYear[tempFullSiteYearS$cYear, "dOY3"] + modSummary@fixEf["dOY3", "Mean"])*((tempFullSiteYearS$dOY)^3))
-
+  BSite[tempFullSiteYearS$site, "airTemp"]*tempFullSiteYearS$airTemp + 
+  BSite[tempFullSiteYearS$site, "airTempLag1"]*tempFullSiteYearS$airTempLagged1 + 
+  BSite[tempFullSiteYearS$site, "airTempLag2"]*tempFullSiteYearS$airTempLagged2 + 
+  BSite[tempFullSiteYearS$site, "precip"]*tempFullSiteYearS$prcp + 
+  BSite[tempFullSiteYearS$site, "precipLag1"]*tempFullSiteYearS$prcpLagged1 + 
+  BSite[tempFullSiteYearS$site, "precipLag2"]*tempFullSiteYearS$prcpLagged2 + 
+  BSite[tempFullSiteYearS$site, "drainage"]*tempFullSiteYearS$TotDASqKM + 
+  BSite[tempFullSiteYearS$site, "forest"]*tempFullSiteYearS$Forest + 
+  BSite[tempFullSiteYearS$site, "elevation"]*tempFullSiteYearS$ReachElevationM + 
+  BSite[tempFullSiteYearS$site, "coarseness"]*tempFullSiteYearS$SurficialCoarseC + 
+  BSite[tempFullSiteYearS$site, "wetland"]*tempFullSiteYearS$CONUSWetland + 
+  BSite[tempFullSiteYearS$site, "impoundments"]*tempFullSiteYearS$ImpoundmentsAllSqKM + 
+  BSite[tempFullSiteYearS$site, "swe"]*tempFullSiteYearS$swe + 
+  BYear[tempFullSiteYearS$cYear, "dOY"]*tempFullSiteYearS$dOY + 
+  BYear[tempFullSiteYearS$cYear, "dOY2"]*((tempFullSiteYearS$dOY)^2) + 
+  BYear[tempFullSiteYearS$cYear, "dOY3"]*((tempFullSiteYearS$dOY)^3)
 
 tempFullSiteS$tempPredicted <- modSummary@fixEf["intercept", "Mean"] +
   BSite[tempFullSiteS$site, "intercept.site"] + 
   modSummary@fixEf["lat", "Mean"]*tempFullSiteS$Latitude + 
   modSummary@fixEf["lon", "Mean"]*tempFullSiteS$Longitude + 
-  (BSite[tempFullSiteS$site, "airTemp"] + modSummary@fixEf["airTemp", "Mean"])*tempFullSiteS$airTemp + 
-  (BSite[tempFullSiteS$site, "airTempLag1"] + modSummary@fixEf["airTempLag1", "Mean"])*tempFullSiteS$airTempLagged1 + 
-  (BSite[tempFullSiteS$site, "airTempLag2"] + modSummary@fixEf["airTempLag2", "Mean"])*tempFullSiteS$airTempLagged2 + 
-  (BSite[tempFullSiteS$site, "precip"] + modSummary@fixEf["precip", "Mean"])*tempFullSiteS$prcp + 
-  (BSite[tempFullSiteS$site, "precipLag1"] + modSummary@fixEf["precipLag1", "Mean"])*tempFullSiteS$prcpLagged1 + 
-  (BSite[tempFullSiteS$site, "precipLag2"] + modSummary@fixEf["precipLag2", "Mean"])*tempFullSiteS$prcpLagged2 + 
-  (BSite[tempFullSiteS$site, "drainage"] + modSummary@fixEf["drainage", "Mean"])*tempFullSiteS$TotDASqKM + 
-  (BSite[tempFullSiteS$site, "forest"] + modSummary@fixEf["forest", "Mean"])*tempFullSiteS$Forest + 
-  (BSite[tempFullSiteS$site, "elevation"] + modSummary@fixEf["elevation", "Mean"])*tempFullSiteS$ReachElevationM + 
-  (BSite[tempFullSiteS$site, "coarseness"] + modSummary@fixEf["coarseness", "Mean"])*tempFullSiteS$SurficialCoarseC + 
-  (BSite[tempFullSiteS$site, "wetland"] + modSummary@fixEf["wetland", "Mean"])*tempFullSiteS$CONUSWetland + 
-  (BSite[tempFullSiteS$site, "impoundments"] + modSummary@fixEf["impoundments", "Mean"])*tempFullSiteS$ImpoundmentsAllSqKM + 
-  (BSite[tempFullSiteS$site, "swe"] + modSummary@fixEf["swe", "Mean"])*tempFullSiteS$swe + 
+  BSite[tempFullSiteS$site, "airTemp"]*tempFullSiteS$airTemp + 
+  BSite[tempFullSiteS$site, "airTempLag1"]*tempFullSiteS$airTempLagged1 + 
+  BSite[tempFullSiteS$site, "airTempLag2"]*tempFullSiteS$airTempLagged2 + 
+  BSite[tempFullSiteS$site, "precip"]*tempFullSiteS$prcp + 
+  BSite[tempFullSiteS$site, "precipLag1"]*tempFullSiteS$prcpLagged1 + 
+  BSite[tempFullSiteS$site, "precipLag2"]*tempFullSiteS$prcpLagged2 + 
+  BSite[tempFullSiteS$site, "drainage"]*tempFullSiteS$TotDASqKM + 
+  BSite[tempFullSiteS$site, "forest"]*tempFullSiteS$Forest + 
+  BSite[tempFullSiteS$site, "elevation"]*tempFullSiteS$ReachElevationM + 
+  BSite[tempFullSiteS$site, "coarseness"]*tempFullSiteS$SurficialCoarseC + 
+  BSite[tempFullSiteS$site, "wetland"]*tempFullSiteS$CONUSWetland + 
+  BSite[tempFullSiteS$site, "impoundments"]*tempFullSiteS$ImpoundmentsAllSqKM + 
+  BSite[tempFullSiteS$site, "swe"]*tempFullSiteS$swe + 
   modSummary@fixEf["dOY", "Mean"]*tempFullSiteS$dOY + 
   modSummary@fixEf["dOY2", "Mean"]*((tempFullSiteS$dOY)^2) + 
   modSummary@fixEf["dOY3", "Mean"]*((tempFullSiteS$dOY)^3)
+
 
 tempFullS <- rbind(tempFullSiteYearS, tempFullSiteS)
 
@@ -201,11 +200,11 @@ for(i in 1:length(unique(tempFull$site))){
     geom_point(colour = 'red', size=1) + 
     geom_line(colour = 'red', size=0.1) + 
     geom_point(aes(dOY, airTemp), size=1) + 
-    ggtitle(unique(tempFullSync$site)[i]) + 
+    ggtitle(dataSite$site[i]) + 
     facet_wrap(~year) + 
     xlab(label = 'Day of the year') + ylab('Temperature (C)') + 
     theme(axis.text.x = element_text(angle = 45))
-  ggsave(filename=paste0(dataLocalDir,'/', 'plots/fullRecord/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=12,height=8, units='in' )
+  ggsave(filename=paste0(dataLocalDir,'/', 'plots/fullRecord/', dataSite$site[i], '.png'), plot=foo, dpi=300 , width=12,height=8, units='in' )
 } # surprisingly fast but wouldn't do for all catchments
 
 
@@ -218,7 +217,9 @@ for(i in 1:length(unique(tempDataSync$site))){
   ggsave(filename=paste0(dataLocalDir,'/', 'plots/', unique(tempDataSync$fsite)[i], '.png'), plot=foo, dpi=300 , width=6,height=4, units='in' )
 } # surprisingly fast
 
-rmse(tempFullSync[!is.na(tempDataSync$temp), "temp"] - tempFullSync[!is.na(tempDataSync$temp), "tempPredicted"])
+rmse(tempFull[which(!is.na(tempFull$temp)), "temp"] - tempFull[!is.na(tempFull$temp), "tempPredicted"])
+
+
 ############## Derived metrics ##########
 
 # Mean maximum daily mean temperature by site (over years)
