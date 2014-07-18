@@ -35,4 +35,19 @@ Our model predictions fail on a small number of sites as seen below. These are l
 <br>
 <img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/MADEP_W0454_T1.png" height="375px" width="600px" />
 
+### Summary of Derived Metrics
 
+From these models we can predict daily stream temperature for any stream reach where there is air temperature, precipitation, and landscape data. We are currently using Daymet [http://daymet.ornl.gov/](http://daymet.ornl.gov/) as our source of daily climate data from 1980-2013. Below are examples of predictions (red) for some sites where some stream temperature data was collected (blue).
+
+<img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/MADEP_W2157_T1.png"/ height="400px", width="600px">
+
+<img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/MAUSGS_WB_JIMMY.png"/ height="400px", width="600px">
+
+
+From these predicted values across years, we calculate derived stream metrics including mean maximum stream temperature over years at a given site, max maximum stream temperature over years, mean number of days per year that the temperature is predicted to exceed 18 <sup>o</sup>C, the number of years from 1980 - 2013 that predicted maximum stream temperature exceeded 18 <sup>o</sup>C, the frequency of years that the max temperature exceeds 18 <sup>o</sup>C, and the average resistance to maximum air temperature change (likely indicator of groundwater inputs and resistance to climate change). We also calculate the average root mean squared error for each site and flag those with high values indicating that the predicted values do not match the observed values as well. These can then be checked for the influence of impoundments not accounted for in the model. Below is an example of derived metrics for some sites. A more complete list for currently processed data can be found in the accompanying excel file.
+
+<img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/Table_Head.png"/>
+
+Additionally, below are some figures depicting the derived metric *Resistance to Peak Air Temperature* (meanResist) for one site. Finally, we can calculate the effects of changing parameters in the model on stream temperature and these derived metrics. For example, we can calculate what the stream temperatures would be if forest cover was increased (or decreased) by 20%. We don't present those results here but they will be easy to add in the future.
+
+<img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/WB.png"/ height="400px", width="600px">
