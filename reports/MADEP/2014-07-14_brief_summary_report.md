@@ -48,6 +48,8 @@ From these predicted values across years, we calculate derived stream metrics in
 
 <img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/Table_Head.png"/>
 
-Additionally, below are some figures depicting the derived metric *Resistance to Peak Air Temperature* (meanResist) for one site. Finally, we can calculate the effects of changing parameters in the model on stream temperature and these derived metrics. For example, we can calculate what the stream temperatures would be if forest cover was increased (or decreased) by 20%. We don't present those results here but they will be easy to add in the future.
+Additionally, below are some figures depicting the derived metric *Resistance to Peak Air Temperature* (meanResist) for one site. The dark shaded area between the two lines is the representation of the resistance. For streams without significant groundwater inputs, during the hottest time of the year the area should be small (the red stream temperature line will closely follow the black air temperature line). In streams with more groundwater input, there will be a buffering (resistance) to changes in air temperature so this area will be larger. 
 
-<img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/WB.png"/ height="400px", width="600px">
+<img src="/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/reports/MADEP/figures/WB_Resistance.png"/ height="400px", width="600px">
+
+Finally, we can calculate the effects of changing parameters in the model on stream temperature and these derived metrics. For example, we can calculate what the stream temperatures would be if forest cover was increased (or decreased) by 20%. We don't present those results here but they will be easy to add in the future.
