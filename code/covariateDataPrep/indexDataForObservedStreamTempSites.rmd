@@ -208,7 +208,7 @@ save(covariateData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject
 # ===========================================================================
 # This function pulls the Daymet variables for a time series at one location nearest to the site location.
 # It takes the stream temperature record and the string of variables to pull from Daymet.
-#     At minimum, the record needs a unique site ID, latitude, longitude, year, and dOY columns.
+#     At minimum, the record needs a "site", "Latitude", "Longitude", "year", and "dOY" columns.
 # It returns the original dataframe with new columns for the Daymet variables.
 ```{r Local Daymet}
 
@@ -216,7 +216,7 @@ save(covariateData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject
 localVariables <- c("dayl", "srad", "swe", "tmax", "tmin", "vp")
 
 # Run the function that indexes the Daymet data
-newLocal <- indexLocalDaymetVariablesForObservedSites(masterData, localVariables)
+newLocal <- indexLocalDaymetVariablesForObservedSites(masterData, localVariables, daymetDir)
 
 # Rename 'tmin' and 'tmax' to avoid confusion
 names(newLocal)[names(newLocal) == 'tmax'] <- 'maxAirTemp'
@@ -277,7 +277,7 @@ upstreamVariables <- c('prcp')
 daymetTiles <- c(11754, 11755, 11756, 11934, 11935, 11936, 12114, 12115, 12116, 12117, 12295, 12296, 12297)
 
 # Run the function that indexes the Daymet data and returns a spatial average
-newUpstream <- indexUpstreamDaymetVariablesForObservedSites(masterData, upstreamVariables, daymetTiles, catchments, covariateData, NENYDelineatedCatchments)
+newUpstream <- indexUpstreamDaymetVariablesForObservedSites(masterData, upstreamVariables, daymetTiles, catchments, covariateData, NENYDelineatedCatchments, daymetDir)
 ```
 
 

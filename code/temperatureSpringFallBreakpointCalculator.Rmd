@@ -21,7 +21,7 @@ graphsDir  <- paste0(baseDir, 'graphs/' )
 
 # Source functions
 source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
-source(paste0(baseDir, '/code/functions/dataIndexingFunctions.R'))
+source(paste0(baseDir, 'code/functions/dataIndexingFunctions.R'))
 
 setwd(baseDir)
 ```

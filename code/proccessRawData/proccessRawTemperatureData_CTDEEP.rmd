@@ -1,0 +1,317 @@
+# This script processes the subdaily temperature data frome CTDEEP.
+# Prior to this, another script was run to import the Access database into R.
+
+```{r Load libraries and read in data}
+rm(list = ls())
+
+# Read raw data:
+load('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/waterTemp06252014.RData')
+
+main <- data
+
+# Read corrected times
+load('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/times.RData')
+
+times <- data
+
+# read in metadata
+metaData <- read.csv('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/DeploymentMetadata.csv')
+```
+
+```{r Check alignment of time}
+#join$time <- as.POSIXct(strptime(join$time, "%H:%M"))
+
+#join$timeD <- as.POSIXct(strptime(join$time, "%Y-%m-%d"))
+
+#sum(join$oldTime - join$timeD)
+
+```
+
+```{r Editing raw}
+
+# Remove incorrect "time" column
+main <- main[ , - which(names(main) == 'time')]
+
+# Re-format and index just the time from the corrected column
+time <- strftime(as.POSIXct(strptime(times$time, "%Y-%m-%d %H:%M:%S")), "%H:%M")
+
+# Join the corrected time column
+rawRecord <- cbind(main, time)
+
+# Because factors cause problems
+rawRecord$time <- as.character(rawRecord$time)
+
+# Save the raw record
+save(rawRecord, metaData, file = 'F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/completeSubdailyRecord.RData')
+
+```
+
+
+# Start here from pre-processed file
+# ----------------------------------
+```{r Aggregate to Hourly and format}
+
+# Temperature record
+# ------------------
+load('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/completeSubdailyRecord.RData')
+
+# Index & rename
+main <- rawRecord[,c('WPLR station ID', 'date', 'time', 'value')]
+names(main) <- c('site', 'date', 'time', 'temp')
+
+# Characterize
+main$site <- paste0(main$site)
+
+# Metadata file
+# -------------
+metaData <- read.csv('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/DeploymentMetadata.csv')
+
+# Index & rename
+meta <- metaData[,c('StationID', 'StreamName.FacilityName')]
+names(meta) <- c('site', 'location')
+
+# Characterize
+meta$site <- paste(meta$site)
+meta$location <- paste0(meta$location)
+
+# Remove duplicates
+meta <- unique(meta[,c('site', 'location')])
+
+```
+
+```{r Read in data and merge}
+#=========================================================================================================
+# Description: 
+#   This function reads in subdaily stream temperature timeseries data and outputs daily data in the
+#     format used by the temperature models.
+#
+# Usage:
+#   aggregeateSubdailyToDaily( record = data.frame(), numDecimals = 3, degrees = 'C', 
+#                               agency = 'CTDEEP', locations = data.frame() )
+#
+# Arguments:
+#    1) record          A dataframe of the temperature record ("location" is optional).
+#                         Minimum requirements:
+#                       -------------------------------------------------------------------------
+#                       'data.frame':   10343647 obs. of  4 variables:
+#                         $ site: chr  "5911" "5911" "5911" "5911" ...
+#                         $ date: POSIXct, format: "2009-11-16" "2009-11-16" "2009-11-16" ...
+#                         $ time: chr  "15:00" "15:15" "15:30" "15:45" ...
+#                         $ temp: num  10.5 10.5 10.5 10.5 10.4 ...
+#                       -------------------------------------------------------------------------
+#
+#    2) numDecimals     A numeric value of the number of decimals to round the temperature values.
+#    3) degrees         A character vector of the degree units the temperature values are in ( C or F).
+#    4) agency          A character vector of the agency abbreviations of the data sources.
+#    5) locations       Optional. A dataframe listing the location names (stream names) paired with the same
+#                         siteIDs in the "record" dataframe.
+#                         Minimum requirements:
+#                       ----------------------------------------------------------------------------
+#                       'data.frame':  869 obs. of  2 variables:
+#                         $ site    : chr  "1838" "2474" "5317" ...
+#                         $ location: chr  "HOUSATONIC RIVER" "Shepaug River" "HOUSATONIC RIVER" ...
+#                       ----------------------------------------------------------------------------
+#
+# Returns a dataframe of daily temperature records formatted for model input.
+#=========================================================================================================
+
+testRecord <- main[1:50000,]
+
+aggregeateSubdailyToDaily <- function(record, numDecimals, degrees, agency, locations){
+
+  library(plyr)
+  
+  # Check optional variables
+  if(missing(locations)) {locs <- NULL} else( locs <- locations ) 
+  
+  # Remove duplicate entries
+  record <- unique(record[,c('site', 'date', 'time', 'temp')])
+
+  # Remove records without siteID
+  record <- record[!record$site == 'NA', ]
+
+  # If necessary, convert from Fahrenheit to Celsius
+  if (degrees == 'F') { record$temp <- (record$temp - 32)*(5/9) } 
+
+  # Calculate min/mean/max and number of records
+  # --------------------------------------------
+  dailyData <- ddply( record, .(site, date), summarise, temp       = round( mean(temp,na.rm=T), digits = numDecimals),
+                                                        minTemp    = round( min (temp,na.rm=T), digits = numDecimals), 
+                                                        maxTemp    = round( max (temp,na.rm=T), digits = numDecimals),
+                                                        numRecords = length(which(!is.na(temp))),
+                                                        negative   = length(which(temp < 0)),
+                                                        over35deg  = length(which(temp > 35)))
+  
+  # Replace NaNs with NAs for consistency
+  dailyData <- replace(dailyData, is.na(dailyData), NA)
+
+  # Add location names
+  if (!is.null(locs)){ 
+    locs <- unique(locs[,c('site', 'location')])
+    dailyData <- merge(dailyData, locs, by = 'site', all.x = T, all.y = F, sort = F)
+  }
+  
+  # Format output for model input
+  dailyData$AgencyID <- paste0(dailyData$site)
+  dailyData$site <- paste0(agency, '_', dailyData$site)
+  dailyData$date <- as.Date(dailyData$date)
+  
+  # Fill missing dates with NA values in between min and max dates
+  # --------------------------------------------------------------
+  sites <- unique(dailyData$site)
+
+  for ( i in 1:length(sites) ){
+    
+    curData <- dailyData[dailyData$site == sites[i],]
+    
+    startDate <- min(curData$date)
+    endDate   <- max(curData$date)
+    
+    if ( nrow(curData) < as.numeric(endDate - startDate) ) {
+    
+      newRange <- seq(from=as.Date(startDate),to=as.Date(endDate),by="day")
+      
+      newDates <- newRange[!(newRange %in% curData$date)]
+      
+      newData <- as.data.frame(matrix(data = NA, nrow = length(newDates), ncol = ncol(curData)))
+      
+      names(newData) <- names(curData)
+      
+      newData$site <- sites[i]
+      newData$AgencyID <- unique(curData$AgencyID)
+      newData$date <- newDates
+      
+      if(! exists('newRecord') ) {newRecord <- newData } else( newRecord <- rbind(newRecord, newData))
+  
+    }# End if statement (for missing dates)
+  }# End site loop
+ 
+  # Add missing days as NAs
+  dailyData <- rbind(dailyData, newRecord); rm(newRecord)
+  
+  dailyData$year <- as.numeric(strftime(dailyData$date, '%Y'))
+  dailyData$dOY  <- as.numeric(strftime(dailyData$date, '%j'))
+    
+  dailyData$siteYear <- paste0(dailyData$site, '_', dailyData$year)
+    
+  # Removing years with all NAs
+  NAcount <- as.data.frame(table( dailyData$siteYear, is.na( dailyData$temp ) ))
+  
+  remove <- NAcount$Var1[which(NAcount$Var2 == TRUE & NAcount$Freq >= 365)]
+  
+  dailyData <- dailyData[! dailyData$siteYear %in% remove ,]
+
+  dailyData <- dailyData[, - which(names(dailyData) == "siteYear")]
+  
+  return(dailyData)
+
+}# End function
+
+
+
+startTime <- proc.time()[3]
+masterData <- aggregeateSubdailyToDaily(record = testRecord, numDecimals = 3, degrees = 'C', agency = 'CTDEEP', locations = meta)
+endTime <- proc.time()[3]
+(endTime - startTime)/3600
+
+# Save the daily records
+save(masterData, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/CTDEEP/observedStreamTemp_CTDEEP.RData')
+
+```
+
+```{r Post-processing }
+
+load('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/CTDEEP/observedStreamTemp_CTDEEP.RData')
+
+names(masterData)[which(names(masterData) == 'meanTemp')] <- 'temp'
+
+g <- masterData
+
+
+hist(g$numRecords, breaks = 1000, ylim = c(1,10000))
+
+
+max(g$numRecords, na.rm = T)
+
+         
+#g <- g[!is.na(g$numRecords),]
+
+recordCount <- as.data.frame(table( g$siteYear, g$numRecords) )
+
+names(recordCount) <- c('site', 'numRecords', 'count')
+
+recordCount <- recordCount[recordCount$count > 0,]
+
+recordCount <- recordCount[order(recordCount$site,recordCount$numRecords),]
+
+
+g <- g[order(g$site, g$year, g$dOY),]
+
+
+siteYears <- unique(g$siteYear)
+
+
+for ( i in 1:length(siteYears) ){
+  
+  i = 1
+  
+  curRec <- g[g$siteYear == siteYears[i],]
+  
+  maxRec <- max(curRec$numRecords, na.rm = T)
+  
+  beg <- min(curRec$date[!is.na(curRec$temp)])
+  end <- max(curRec$date[!is.na(curRec$temp)])
+  
+  
+  if( curRec$numRecords[curRec$date == beg] < maxRec )
+    
+    g[g$siteYear == siteYears[i] & g$date == beg,]
+    
+  
+  
+  if(curRec)
+  
+  
+  nrow(temp)
+  
+  
+  
+  
+}
+
+
+
+g$siteYear <- paste0(g$site, '_', g$year)
+
+
+
+
+
+  recs <- recordCount[recordCount$site == site & numRecords]
+  
+
+
+
+if (x$numRecords < max(x$numRecords))
+
+
+
+
+
+
+
+
+
+
+
+what <- g[ g$numRecords == 8,]
+
+
+
+
+main[main$site == '204',]
+
+
+
+
+
