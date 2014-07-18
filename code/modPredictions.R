@@ -1,6 +1,6 @@
 rm(list=ls())
 
-library(devtools)
+#library(devtools)
 # devtools::install_github("hadley/dplyr") # not working
 
 library(ggplot2)
@@ -11,8 +11,8 @@ library(DataCombine) # for the slide function
 #setwd('C:/Users/dhocking/Documents/temperatureProject/')
 
 #baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
-baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
-#baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
+#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 setwd(baseDir)
 
 dataInDir <- paste0(baseDir, 'dataIn/')
@@ -247,10 +247,10 @@ derivedSiteMetrics <- left_join(derivedSiteMetrics, maxMaxTemp, by = "site")
 # ggplot(tempFull, aes(dOY, temp)) + geom_point(size=1, colour='black') + geom_point(aes(dOY, tempPredicted), colour = 'red', size=0.75) + ylab(label="Stream temperature (C)") + xlab("Day of the year") + geom_point(data=maxTempSiteYear1, aes(dOY, tempPredicted), colour = "green") + facet_grid(site ~ year) # max temp points all replicated on every panel
 
 # Number of days with stream temp > 18C
-meanDays18 <- summarise(summarise(filter(bySiteYear, tempPredicted > 18), days18 = n()), meanDays18 = mean(days18))
-
 meanDays18 <- bySiteYear %>%
-  filter(tempPredicted)
+  filter(tempPredicted > 18) %>%
+  summarise(days18 = n()) %>%
+  summarise(meanDays18 = mean(days18))
 
 derivedSiteMetrics <- left_join(derivedSiteMetrics, meanDays18, by = "site")
 
@@ -261,7 +261,20 @@ yearsMaxTemp18 <- summarise(
 )
 derivedSiteMetrics <- left_join(derivedSiteMetrics, yearsMaxTemp18, by = "site")
 
+# frequency of years with a mean max over 18 C
+derivedSiteMetrics <- mutate(derivedSiteMetrics, freqMax18 = yearsMaxTemp18/length(unique(bySiteYear$year)))
+
 # Resistance to peak air temperature
+## Need to think of a way to make more general rather than by specific dOY (60 day max moving window air temp?)
+meanResist <- bySiteYear %>%
+  filter(dOY >= 145 & dOY <= 275) %>%
+  mutate(absResid = abs(airTemp - tempPredicted)) %>%
+  summarise(resistance = sum(absResid)) %>%
+  summarise(meanResist = mean(resistance))
+
+derivedSiteMetrics <- left_join(derivedSiteMetrics, meanResist, by = "site")
+
+
 WB.2011.summer <- pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011 & pred.t$dOY.real >=145 & pred.t$dOY.real <= 275), ]
 sum(WB.2011.summer$airTemp - WB.2011.summer$tempPredicted)
 
@@ -282,5 +295,35 @@ ggplot(pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010), ], aes(dOY
 
 # Reset ggplot2 theme default to gray
 theme_set(theme_gray())
+
+
+
+# Air-Water Resiliency
+
+# RMSE for each site (flag highest)
+meanRMSE <- bySiteYear %>%
+  filter(!(is.na(temp))) %>%
+  mutate(error2 = (temp - tempPredicted)^2) %>%
+  summarise(RMSE = sqrt(mean(error2))) %>%
+  summarise(meanRMSE = mean(RMSE))
+
+derivedSiteMetrics <- left_join(derivedSiteMetrics, meanRMSE, by = "site")
+
+# total observations (days with data) per site
+totObs <- bySiteYear %>%
+  filter(!is.na(temp)) %>%
+  summarise(Obs = n()) %>%
+  summarise(totObs = sum(Obs))
+
+derivedSiteMetrics <- left_join(derivedSiteMetrics, totObs, by = "site")
+
+# Flag based on RMSE > 90%
+derivedSiteMetrics <- mutate(derivedSiteMetrics, flag = ifelse(meanRMSE > quantile(derivedSiteMetrics$meanRMSE, probs = c(0.9), na.rm=TRUE), "Flag", ""))
+
+summary(derivedSiteMetrics)
+
+derivedSiteMetricsClean <- na.omit(derivedSiteMetrics)
+write.table(derivedSiteMetricsClean, file = 'reports/MADEP/derivedSiteMetrics.csv', sep=',', row.names = F)
+
 
 
