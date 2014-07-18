@@ -275,21 +275,21 @@ meanResist <- bySiteYear %>%
 derivedSiteMetrics <- left_join(derivedSiteMetrics, meanResist, by = "site")
 
 
-WB.2011.summer <- pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011 & pred.t$dOY.real >=145 & pred.t$dOY.real <= 275), ]
+WB.2011.summer <- tempFull[which(tempFull$site == "MAUSGS_WEST_BROOK" & tempFull$year == 2011 & tempFull$dOY >=145 & tempFull$dOY <= 275), ]
 sum(WB.2011.summer$airTemp - WB.2011.summer$tempPredicted)
 
-ggplot(pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011), ], aes(dOY.real, tempPredicted)) + 
-  geom_point(size=2, colour = "black") + geom_line(colour = 'black') +
-  geom_point(data=et2[which(et2$site == "WEST BROOK" & et2$year == 2011), ], aes(dOY, airTemp), colour = "red", size=2) + 
-  geom_line(data=et2[which(et2$site == "WEST BROOK" & et2$year == 2011), ], aes(dOY, airTemp), colour = "red") + 
-  geom_ribbon(data = pred.t[which(pred.t$site == "WEST BROOK" & pred.t$year == 2011 & pred.t$dOY.real >=145 & pred.t$dOY.real <= 275), ], aes(x=dOY.real, ymin=tempPredicted, ymax=airTemp), fill="dark grey", alpha=.5) +
+ggplot(tempFull[which(tempFull$site == "MAUSGS_WEST_BROOK" & tempFull$year == 2011), ], aes(dOY, tempPredicted)) + 
+  geom_point(size=2, colour = "red") + geom_line(colour = 'red') +
+  geom_point(data=tempFull[which(tempFull$site == "MAUSGS_WEST_BROOK" & tempFull$year == 2011), ], aes(dOY, airTemp), colour = "black", size=2) + 
+  geom_line(data=tempFull[which(tempFull$site == "MAUSGS_WEST_BROOK" & tempFull$year == 2011), ], aes(dOY, airTemp), colour = "black") + 
+  geom_ribbon(data = tempFull[which(tempFull$site == "MAUSGS_WEST_BROOK" & tempFull$year == 2011 & tempFull$dOY >=145 & tempFull$dOY <= 275), ], aes(x=dOY, ymin=tempPredicted, ymax=airTemp), fill="dark grey", alpha=.5) +
   xlab("Day of the year") +
   ylab("Temperature (C)") #+ theme_classic()
 
-ggplot(pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010), ], aes(dOY.real, tempPredicted)) + 
+ggplot(tempFull[which(tempFull$site == "WB OBEAR" & tempFull$year == 2010), ], aes(dOY.real, tempPredicted)) + 
   geom_point(size=2, colour = "black") + geom_line(colour = 'black') +
   geom_abline(intercept = 18, slope=0, colour='red') +
-  geom_point(data = pred.t[which(pred.t$site == "WB OBEAR" & pred.t$year == 2010 & pred.t$tempPredicted >= 18), ], aes(dOY.real, tempPredicted), colour='red') +
+  geom_point(data = tempFull[which(tempFull$site == "WB OBEAR" & tempFull$year == 2010 & tempFull$tempPredicted >= 18), ], aes(dOY.real, tempPredicted), colour='red') +
   xlab("Day of the year") +
   ylab("Stream temperature (C)") #+ theme_classic()
 
