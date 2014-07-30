@@ -1,0 +1,201 @@
+#Author:
+#  Kyle O'Neil
+#Created:
+#  6/20/2014
+#Last Updated:
+#  6/25/14
+#Language:
+#	 R
+#Description:
+#  This script pairs stream temperature sites with the covariate values based on NHDPlus catchment
+#  delineation. It also indexes timeseries climate data from Daymet and pairs it with the stream 
+#  temperature record.
+
+#  Currently the Daymet NetCDF files cover the years 1980-2013 and the spatial range of which is 
+#  VT, NH, MA, CT, RI, ME, and parts of NY.
+
+#  The primary input files are:
+#   1) The stream temperature record
+#   2) A catchments shapefile covering the contributing watersheds of this dataset
+#   3) A master list of delineated catchments for the area
+#   4) A master list of the local and upstream covariate values
+#========================================================================================================
+
+
+# Specify libraries and directories and define the projection of the spatial data:
+# ================================================================================
+``` {r Libraries and directories}
+rm(list=ls())
+
+library(sp)
+library(rgdal)
+library(rgeos)
+library(maptools)
+library(chron)
+library(ncdf)
+library(ggplot2)
+library(reshape2)
+library(gridExtra)
+
+# Base directory
+baseDir <- 'C:/KPONEIL/GitHub/projects/'
+
+# Daymet data directory
+daymetDir <- 'F:/KPONEIL/SourceData/climate/DAYMET/unzipped/Daily/'
+
+# Enter the data source agency abbreviation
+dataSource <- 'MEFWS'
+
+# Define the projection of the spatial data
+proj4.NHD  <- "+proj=longlat +ellps=GRS80 +datum=NAD83 +no_defs"
+
+
+# Source functions
+source(paste0(baseDir, 'code/functions/temperatureModelingFunctions.R'))
+source(paste0(baseDir, '/code/functions/dataIndexingFunctions.R'))
+
+setwd(baseDir)
+```
+
+# Select the agencies to use data from.
+```{r Choose data source}
+
+
+load('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/MADEP/covariateData_MADEP.RData')
+c1 <- covariateData
+
+load('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/MAFW/covariateData_MAFW.RData')
+c2 <- covariateData
+
+load('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/MAUSGS/covariateData_MAUSGS.RData')
+c3 <- covariateData
+
+covariateData <- rbind(c1, c2, c3)
+
+
+record <- seq(from=as.Date("1980-01-01"),to=as.Date("2013-12-31"), by="day")
+
+sites <- unique(covariateData$site)
+
+for( i in 1:length(sites) ){
+  
+  Lat <- covariateData$Latitude[covariateData$]
+  Lon
+  
+  
+  data.frame(site = sites[i], date = record,  
+  
+  
+  
+  
+  
+  
+  
+  
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Select "T" or "F" for using agency data
+sources <- list (
+  # Northeast
+  CTDEP  = CTDEP  <- F,
+  MADEP  = MADEP  <- T,
+  MAFW   = MAFW   <- T,
+  MAUSGS = MAUSGS <- T,
+  MEDMR  = MEDMR  <- F,
+  MEFWS  = MEFWS  <- F,
+  NHDES  = NHDES  <- F,
+  NHFG   = NHFG   <- F,
+  USFS   = USFS   <- F,
+  VTFWS  = VTFWS  <- F,
+  
+  # Montana
+  MTUSGSYellowstone = MTUSGSYellowstone <- F,
+  MTUSGSGlacier     = MTUSGSGlacier     <- F
+)
+
+dataSources <- names(sources[(sources == T)])
+
+# Enter the common fields from the temperature ("site" must be one).
+tempFields <- c('site', 'year', 'dOY', 'date', 'agency', 'temp', 'airTemp')
+
+# Enter the specific covariate fields you want to pull ("site" must be one) or for the entire file, enter "ALL"
+covFields <- c('site', 'HUC4', 'HUC8', 'HUC12')
+
+# Read in data records and join into one dataframe
+# ------------------------------------------------
+e <- readStreamTempData(timeSeries = T, covariates = T, dataSourceList = dataSources, fieldListTS = tempFields, fieldListCD = covFields, directory = dataInDir )
+
+```
+
+# Index the local Daymet variables for the observed stream temperature sites:
+# ===========================================================================
+# This function pulls the Daymet variables for a time series at one location nearest to the site location.
+# It takes the stream temperature record and the string of variables to pull from Daymet.
+#     At minimum, the record needs a unique site ID, latitude, longitude, year, and dOY columns.
+# It returns the original dataframe with new columns for the Daymet variables.
+```{r Local Daymet}
+
+# List the Daymet variables to index
+localVariables <- c("dayl", "srad", "swe", "tmax", "tmin", "vp")
+
+# Run the function that indexes the Daymet data
+newLocal <- indexLocalDaymetVariablesForObservedSites(masterData, localVariables)
+
+# Rename 'tmin' and 'tmax' to avoid confusion
+names(newLocal)[names(newLocal) == 'tmax'] <- 'maxAirTemp'
+names(newLocal)[names(newLocal) == 'tmin'] <- 'minAirTemp'
+
+# Check the amount of NAs
+length(which(is.na(newLocal)))/length(which(!is.na(newLocal)))*100
+```
+
+```{r Save the Local Daymet}
+masterData <- newLocal[order(newLocal$site,newLocal$year,newLocal$dOY),]
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/observedStreamTempAndClimateData_', dataSource, '_NeedPrcp.RData'))
+```
+
+
+# Index the upstream Daymet variables for the observed stream temperature sites:
+# ===========================================================================
+# This function calculates the spatial average of the Daymet variables within a watershed.
+# It takes the following:
+#    1) The stream temperature record (Site names, latitude, longitude, year, and dOY columns)
+#    2) A string of variables to pull from Daymet
+#    3) A list of daymet tiles covered by the watersheds
+#    4) A master catchments shapefile
+#    5) A dataframe of the covariates for the catchments (FEATUREIDs source)
+#    6) A list of catchment delineations for the region
+# It returns the original dataframe with new columns for the Daymet variables.
+```{r Index the upstream Daymet variables for the observed sites}
+
+# Load the covariate data for the featureIDs
+load(paste0(baseDir, 'temperatureProject/dataIn/', dataSource, '/covariateData_', dataSource, '.RData'))
+
+# Daymet variables you want
+upstreamVariables <- c('prcp')
+
+# List the Daymet tiles that the watersheds may fall in
+daymetTiles <- c(11754, 11755, 11756, 11934, 11935, 11936, 12114, 12115, 12116, 12117, 12295, 12296, 12297)
+
+# Run the function that indexes the Daymet data and returns a spatial average
+newUpstream <- indexUpstreamDaymetVariablesForObservedSites(masterData, upstreamVariables, daymetTiles, catchments, covariateData, NENYDelineatedCatchments)
+```
+
+
+```{r Save the dataframe}
+masterData <- newUpstream
+save(masterData, file = paste0('C:/KPONEIL/GitHub/projects/temperatureProject/dataIn/', dataSource, '/observedStreamTempAndClimateData_', dataSource, '.RData'))
+```

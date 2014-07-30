@@ -1,0 +1,105 @@
+# This code reads in and formats the subdaily stream temperature records as received from MADEP.
+# Note: The metadata file was provided in an Access database format which was exported to xlsx to avoid using 32bit R (RODBC package).
+```{r Set directories}
+rm(list=ls())
+
+library(xlsx)
+library(plyr)
+library(reshape2)
+library(lubridate)
+
+# Set RAM limit high
+options(java.parameters = "-Xmx16000m")
+
+agency <- 'MADEP'
+
+baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork'
+
+dataDir <- paste0(baseDir, '/MADEP/dataIn/temperatureFiles')
+```
+
+```{r Read in data}
+
+# Metadata
+# --------
+# 
+meta <- read.xlsx(paste0(baseDir, '/MADEP/dataIn/unattended OWMID summary data.xlsx'), sheetName='unattended_OWMID_summary_data', as.data.frame=TRUE, stringsAsFactors = FALSE)
+
+
+# Timeseries data
+# ---------------
+# Set file paths
+paths <- dir(dataDir, pattern = "\\.xlsx$", full.names = T)
+
+# Manipulate file names to get siteIDs
+splitNames <- t(as.data.frame(strsplit(basename(paths), "_", fixed = FALSE, perl = FALSE, useBytes = FALSE)))
+names(paths) <- paste0(splitNames[,1], "_", splitNames[,2])
+
+# Define function to read in files
+readMADEP <- function(x) {
+
+  # Read xlsx (OWMID, time, temp, & QA/QC Qualifier)
+  df <- read.xlsx(x, sheetIndex = 2, colIndex=c(1,2,3,4), as.data.frame=TRUE, colClasses = c('character', 'POSIXct', 'numeric', 'character'), stringsAsFactors=FALSE)
+  
+  print(x)
+  gc()
+  return(df)
+}
+
+# Apply the function
+record <- ldply(paths, readMADEP)
+
+#save(record, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/MADEP/dataOut/rawSubDailyStreamTempData.RData')
+```
+
+
+```{r Raw data cleaning}
+#load('C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/MADEP/dataOut/rawSubDailyStreamTempData.RData')
+
+# Rename columns
+names(record) <- c('site', 'OWMID', 'dateTime', 'temp', 'tempQualifiers')
+
+# Checkout qualifiers column
+print( unique(record$tempQualifiers) )
+
+# NA records with qualifiers. See "readme" tab in raw data spreadsheets
+record$temp[which(!is.na(record$tempQualifiers))] <- NA
+
+# Convert date to our timezone
+record$dateTime <- force_tz(record$dateTime, tz="US/Eastern")
+
+# Split site id column for unique_id joining with metadata
+record <- data.frame(record, colsplit(record$site, "_", c('UNIQUE_ID', 'probeType')) )
+
+
+# Prepare metadata to join to main record
+# ---------------------------------------
+# Pick columns
+metaJoin <- meta[,c('Waterbody', 'UNIQUE_ID', 'OWMID', 'Latitude', 'Longitude', 'MLTYP_NAME')]
+
+# Rename the waterbody type
+names(metaJoin)[which(names(metaJoin) == 'MLTYP_NAME')] <- 'WaterbodyType'
+
+
+# Edit waterbody names
+loc <- colsplit(metaJoin$Waterbody, "/", c('a', 'b'))
+metaJoin$Waterbody <- paste(loc$a, loc$b)
+
+# Merge in metadata by "UNIQUE_ID" and "OWMID"
+record <- merge(record, metaJoin, by = c('UNIQUE_ID', 'OWMID'), all.x = T, all.y = F, sort = F)
+
+# Rename the Agency's identifier for 
+names(record)[which(names(record) == 'UNIQUE_ID')] <- 'AgencyID'
+
+# Add agency column
+record$agency <- agency
+
+# Format site name
+record$site <- paste0(agency, '_', record$site)
+```
+
+```{r Save the record}
+subDailyRecord <- record[,c('site', 'agency', 'AgencyID', 'dateTime', 'temp', 'probeType', 'Waterbody', 'WaterbodyType', 'Latitude', 'Longitude')]
+
+save(subDailyRecord, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/MADEP/dataOut/cleanedSubDailyStreamTempData.RData')
+```
