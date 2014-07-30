@@ -1,0 +1,50 @@
+
+```{r }
+rm(list = ls())
+
+library(lubridate)
+
+
+load('C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/spreadsheetData.RData')
+
+work <- spreadsheetData[spreadsheetData$site == unique(spreadsheetData$site)[1], ]
+
+work <- work[ which(duplicated(work[,c('site', 'temp', 'dateTime')]) == FALSE),]
+
+
+
+
+#work$year <- as.numeric(strftime(work$date, '%Y'))
+#work$dOY  <- as.numeric(strftime(as.Date(work$date), '%j'))
+
+work$date <- c(work$dateTime[24])
+
+
+
+
+as.numeric(strftime(work$dateTime[24], '%j'))
+
+
+s <- work[work$dOY == 122 & work$year == 2012,]
+
+
+library(zoo)
+
+
+diffs <- rollapply(work$dateTime, width=2, fill=NA, diff)
+
+
+
+str(as.duration(diff))
+
+
+
+
+
+
+check <- spreadsheetData[- which(duplicated(spreadsheetData[,c('site', 'temp', 'dateTime')]) == TRUE),]
+
+check2 <- spreadsheetData[duplicated(spreadsheetData[,c('site', 'temp', 'dateTimeChar')]),]
+
+
+```

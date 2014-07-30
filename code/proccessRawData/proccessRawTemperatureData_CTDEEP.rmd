@@ -1,50 +1,272 @@
 # This script processes the subdaily temperature data frome CTDEEP.
 # Prior to this, another script was run to import the Access database into R.
 
+
+# ====================
+# Access Database data
+# ====================
+# The "RODBC" R package is used to upload the Access and Excel files for CTDEEP. Because this package is only for
+#   32-bit R, it needs to be run in the R window outside of R-Studio. The first two sections of this script are
+#   meant to be run in an "R i386 3.0.2" window.
+```{r Read Access database}
+
+library(RODBC)
+
+# Make the connection
+channel <- odbcConnectAccess("C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/water temp 06252014")
+
+# Query the raw data
+data <- sqlQuery( channel , paste ("select *
+ from HOBOcentraldata"), as.is = TRUE)
+
+# Query the meta data
+meta <- sqlQuery( channel , paste ("select *
+ from DeploymentMetadata"), as.is = TRUE)
+
+# Save the data
+save(data, meta, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/waterTemp06252014.RData')
+```
+
+
+str(meta)
+'data.frame':  2806 obs. of  22 variables:
+ $ Deployment unique ID   : int  1564 1565 1566 1567 1568 1569 1570 1571 1572 1573 ...
+ $ StationID              : int  1838 2474 5317 5579 5954 5985 5988 6023 6024 6071 ...
+ $ YLat                   : num  41.6 41.7 41.7 41.9 41.7 ...
+ $ XLong                  : num  -73.5 -73.3 -73.5 -73.4 -73.3 ...
+ $ StreamName/FacilityName: chr  "HOUSATONIC RIVER" "Shepaug River" "HOUSATONIC RIVER" "SALMON CREEK" ...
+ $ proximity              : chr  "at" "upstream route 47" "gunns eddy" NA ...
+ $ landmark/facility name : chr  "Route 7 Crossing in Merwinsville" "adjacent to Bee Brook Confluence" "200 M US of Powerline at Gunn's Eddy" "50 M US mouth" ...
+ $ basinid                : chr  "6000" "6700" "6000" "6007" ...
+ $ Municipality           : chr  "New Milford" "Washington" "Sherman" "Salisbury" ...
+ $ probe serial number    : chr  "9725716" "9932580" "9725750" "9725744" ...
+ $ Year                   : int  2011 2011 2011 2011 2011 2011 2011 2011 2011 2010 ...
+ $ FirstOfdate            : chr  "2011-10-25 00:00:00" "2011-10-25 00:00:00" "2011-10-26 00:00:00" "2011-10-30 00:00:00" ...
+ $ LastOfdate             : chr  "2011-07-22 00:00:00" "2011-07-22 00:00:00" "2011-07-22 00:00:00" "2011-07-22 00:00:00" ...
+ $ CountOfvalue           : int  3479 3309 3481 3862 3308 3765 3402 3299 3307 2246 ...
+ $ MaxOfvalue             : num  29.8 29 30.7 23.9 29.6 ...
+ $ MinOfvalue             : num  11.08 10.07 11.01 6.41 10.42 ...
+ $ AvgOfvalue             : num  20.3 19.9 20.3 16.7 20.3 ...
+ $ parameter              : chr  "Water Temperature" "Water Temperature" "Water Temperature" "Water Temperature" ...
+ $ not stream temperature : chr  "0" "0" "0" "0" ...
+ $ sample by site         : int  -2011 -2011 -2011 -2011 -2011 -2011 -2011 -2011 -2011 -2011 ...
+ $ comment                : chr  NA NA NA NA ...
+ $ Volmon deploy          : chr  "0" "0" "0" "0" ...
+
+str(data)
+'data.frame':  10343647 obs. of  15 variables:
+ $ probe serial number   : chr  "09H100617" "09H100617" "09H100617" "09H100617" ...
+ $ sample by site        : int  15819 15819 15819 15819 15819 15819 15819 15819 15819 15819 ...
+ $ date                  : chr  "2009-11-16 00:00:00" "2009-11-16 00:00:00" "2009-11-16 00:00:00" "2009-11-16 00:00:00" ...
+ $ time                  : chr  "1899-12-30 15:00:40" "1899-12-30 15:15:40" "1899-12-30 15:30:40" "1899-12-30 15:45:40" ...
+ $ parameter             : chr  "Water temperature" "Water temperature" "Water temperature" "Water temperature" ...
+ $ value                 : num  10.5 10.5 10.5 10.5 10.4 ...
+ $ unit                  : chr  "degrees C" "degrees C" "degrees C" "degrees C" ...
+ $ year                  : int  2009 2009 2009 2009 2009 2009 2009 2009 2009 2009 ...
+ $ day of year           : int  320 320 320 320 320 320 320 320 320 320 ...
+ $ not stream temperature: chr  "0" "0" "0" "0" ...
+ $ WPLR station ID       : int  5911 5911 5911 5911 5911 5911 5911 5911 5911 5911 ...
+ $ entered date          : chr  "2010-12-15 00:00:00" "2010-12-15 00:00:00" "2010-12-15 00:00:00" "2010-12-15 00:00:00" ...
+ $ deployment unique id  : int  616 616 616 616 616 616 616 616 616 616 ...
+ $ comment               : chr  NA NA NA NA ...
+ $ AWQ_station_ID        : int  17300 17300 17300 17300 17300 17300 17300 17300 17300 17300 ...
+
+
+
+# Load the saved raw data from the Access database into RStudio
 ```{r Load libraries and read in data}
 rm(list = ls())
 
 # Read raw data:
-load('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/waterTemp06252014.RData')
+load('C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/waterTemp06252014.RData')
 
-main <- data
+# Make names easier to work with
+names(data) <- gsub(' ', '.', names(data))
+names(meta) <- gsub(' ', '.', names(meta))
 
-# Read corrected times
-load('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/times.RData')
+# Limit the data to all versions of "water temperature" as described in the the Deployment Metadata
+data <- data[data$parameter %in% unique(meta$parameter),]
 
-times <- data
+# Remove "not stream temperature" sites
+data <- data[data$not.stream.temperature == 0,]
+meta <- meta[meta$not.stream.temperature == 0,]
 
-# read in metadata
-metaData <- read.csv('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/DeploymentMetadata.csv')
+
+#data <- data[,c('WPLR station ID', 'deployment unique id', 'date', 'time', 'value', 'parameter', 'unit', 'not stream temperature', 'comment')]
+#names(data) <- c('site', 'deploymentID', 'date', 'time', 'temp', 'parameter', 'unit', 'not.stream.temperature', 'comment')
+
+
+
+
+
+
+
+#meta <- meta[,c('StationID', 'Deployment unique ID', 'YLat', 'XLong', 'StreamName/FacilityName', 'parameter', 'not stream temperature', 'comment')]
+#names(meta) <- c('site', 'deploymentID', 'Latitude', 'Longitude', 'location', 'parameter', 'not.stream.temperature', 'comment')
+
+
+ind <- which(names(data) == 'WPLR station ID')
+
+
+work <- data[data[,ind] == unique(data[,ind])[1],]
+
+unique(work[,13])
+
+test <- work[is.na(work[,13]), ]
+
+
+length(which(is.na(work[,13])))
+length(which(is.na(work$value)))
+
+
+#names(data)[names(data) %in% names(meta)]
+
+
+
+
+
+
+# Remove StationIDs that aren't in metadata 
+data <- data[data$site %in% meta$site,]
+
+
+#     Visually check units
+# --------------------------------
+unique(data$unit)
+
+# which is not some form of degC
+check <- data[data$unit == 'unit',]
+
+print(check)
+
+# Looks to be in degC
+#---------------------------------
+
+
+# Date-time correction
+# --------------------
+# Index time
+timeChar <- substr(data$time, 12, 20)
+
+# Index date
+dateChar <- substr(data$date, 1, 10)
+
+# Join date and time into one POSIXct column
+#   Go with "EST" vs "EDT" because it's recognized by POSIXct
+data$dateTime <- as.POSIXct(paste(dateChar, timeChar), tz = "EST")
+
+
+
+dbData <- data[,c('site', 'temp', 'dateTime')]
+
+#save(dbData, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/dbData.RData')
+#save(meta, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/metadata.RData' )
+
 ```
 
-```{r Check alignment of time}
-#join$time <- as.POSIXct(strptime(join$time, "%H:%M"))
 
-#join$timeD <- as.POSIXct(strptime(join$time, "%Y-%m-%d"))
 
-#sum(join$oldTime - join$timeD)
 
+
+
+
+
+
+
+
+
+# ======================
+# Excel spreadsheet data
+# ======================
+# For now, all files need to be in the same format/version (e.g. ".xls" or ".xlsx"). This code works for files that were changed to ".xls" format, since this is what more of the files were saved as. If it is in ".xlsx" format, a quick fix is to have the file open when the script is run. Otherwise, the script needs to be altered to reflect the new format.
+```{r Read excel files}
+
+rm(list = ls())
+
+require(RODBC)
+
+setwd('C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/spreadsheets')
+
+#Column names to select
+columnNames <- c("temperature_C", "station id", "date", "time")
+# Note: "date time" column format differs accross spreadsheets so it is unuseable
+
+# List the files that will be read in. (Alternatively a defined list of names, with extensions)
+tableNames <- list.files()
+
+# Loop through the excel files
+for ( i in 1:length(tableNames) ){
+  
+  raw = odbcConnectExcel(tableNames[i])
+
+  rawSheets <- sqlTables(raw)$TABLE_NAME
+  sheets <- substr(rawSheets, start = 2, stop = nchar(rawSheets)-2)
+  
+  for ( j in 1:length(sheets) ){
+    
+    print(paste(i,j))
+    
+    df <- sqlFetch(raw, sheets[j])
+  
+    df <- df[, columnNames]
+   
+    if( j == 1 ) {subData <- df} else( subData <- rbind(subData, df) )
+    
+    rm(df)
+    
+  }
+
+  odbcClose(raw)
+  
+  if ( i == 1) {allData <- subData} else( allData <- rbind(allData, subData) )
+
+}
+
+# Save here so work can continue in RStudio
+save(allData, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/spreadsheets/spreadsheetDataRaw.RData')
 ```
 
-```{r Editing raw}
 
-# Remove incorrect "time" column
-main <- main[ , - which(names(main) == 'time')]
 
-# Re-format and index just the time from the corrected column
-time <- strftime(as.POSIXct(strptime(times$time, "%Y-%m-%d %H:%M:%S")), "%H:%M")
 
-# Join the corrected time column
-rawRecord <- cbind(main, time)
+# From here, reload the database data into RStudio.
+```{r Time fixing on spreadsheet data}
 
-# Because factors cause problems
-rawRecord$time <- as.character(rawRecord$time)
+load('C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/spreadsheets/spreadsheetDataRaw.RData')
 
-# Save the raw record
-save(rawRecord, metaData, file = 'F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/completeSubdailyRecord.RData')
+test <- allData[1:100,]
 
+#unique(nchar(allData$time))
+
+# Remove entries with "NA" for date
+allData <- allData[- which(is.na(allData$date)),]
+
+# Remove entries with "NA" for time
+allData <- allData[- which(is.na(allData$time)),]
+
+# Index time
+timeChar <- substr(allData$time, 12, 20)
+
+# Index date
+dateChar <- substr(allData$date, 1, 10)
+
+# Join date and time into one POSIXct column
+#   Go with "EST" vs "EDT" because it's recognized by POSIXct
+allData$dateTime <- as.POSIXct(paste(dateChar, timeChar), tz = "EST")
+
+# Pick 3 main columns
+spreadsheetData <- allData[,c('station id','temperature_C', 'dateTime')]
+
+# Rename to our naming schema
+names(spreadsheetData) <- c('site', 'temp', 'dateTime')
+
+#save(spreadsheetData, file = 'C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/spreadsheetData.RData')
 ```
+
+
+
+
+
 
 
 # Start here from pre-processed file
@@ -53,7 +275,31 @@ save(rawRecord, metaData, file = 'F:/KPONEIL/SourceData/streamTemperature/CT/CTD
 
 # Temperature record
 # ------------------
-load('F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/completeSubdailyRecord.RData')
+load('C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/spreadsheetData.RData')
+load('C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/dbData.RData')
+load('C:/KPONEIL/GitHub/projects/temperatureProject/rawDataWork/CTDEEP/metadata.RData')
+
+
+dupsDB <- dbData[duplicated(dbData[,c('site', 'temp', 'dateTime')]),]
+
+
+
+dups <- spreadsheetData[duplicated(spreadsheetData[,c('site', 'temp', 'dateTime')]),]
+
+dim(dups)
+
+
+spreadsheetData[spreadsheetData$site == 49 &  spreadsheetData$temp == 24.581 & spreadsheetData$dateTime == as.POSIXct("2012-07-19 21:00:00", tz = 'EST'),  ]
+
+49 24.581 2012-07-19 21:00:00
+
+
+
+str(dbData)
+
+
+
+
 
 # Index & rename
 main <- rawRecord[,c('WPLR station ID', 'date', 'time', 'value')]
@@ -75,9 +321,27 @@ meta$site <- paste(meta$site)
 meta$location <- paste0(meta$location)
 
 # Remove duplicates
-meta <- unique(meta[,c('site', 'location')])
+meta <- meta[!duplicated(meta$site),]
 
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```{r Read in data and merge}
 #=========================================================================================================
@@ -227,7 +491,6 @@ names(masterData)[which(names(masterData) == 'meanTemp')] <- 'temp'
 
 g <- masterData
 
-
 hist(g$numRecords, breaks = 1000, ylim = c(1,10000))
 
 
@@ -253,14 +516,20 @@ siteYears <- unique(g$siteYear)
 
 for ( i in 1:length(siteYears) ){
   
-  i = 1
-  
   curRec <- g[g$siteYear == siteYears[i],]
+  
+  curRec <- g[g$siteYear == 'CTDEEP_1468_2013',]
+  "CTDEEP_1468_2013
   
   maxRec <- max(curRec$numRecords, na.rm = T)
   
   beg <- min(curRec$date[!is.na(curRec$temp)])
   end <- max(curRec$date[!is.na(curRec$temp)])
+  
+  out <- length(which(curRec$numRecord[curRec$date > beg & curRec$date < end] < maxRec))
+  
+  if( out > 0 ) {print(paste(siteYears[i], out))}
+}  
   
   
   if( curRec$numRecords[curRec$date == beg] < maxRec )
@@ -307,11 +576,48 @@ if (x$numRecords < max(x$numRecords))
 what <- g[ g$numRecords == 8,]
 
 
+```
+
+
+# Planned to be deleted below here:
+# ---------------------------------
+
+
+
+
 
 
 main[main$site == '204',]
 
+```{r Check alignment of time}
+#join$time <- as.POSIXct(strptime(join$time, "%H:%M"))
+
+#join$timeD <- as.POSIXct(strptime(join$time, "%Y-%m-%d"))
+
+#sum(join$oldTime - join$timeD)
+
+```
 
 
+
+
+```{r Editing raw}
+
+# Remove incorrect "time" column
+main <- main[ , - which(names(main) == 'time')]
+
+# Re-format and index just the time from the corrected column
+time <- strftime(as.POSIXct(strptime(times$time, "%Y-%m-%d %H:%M:%S")), "%H:%M")
+
+# Join the corrected time column
+rawRecord <- cbind(main, time)
+
+# Because factors cause problems
+rawRecord$time <- as.character(rawRecord$time)
+
+# Save the raw record
+save(rawRecord, metaData, file = 'F:/KPONEIL/SourceData/streamTemperature/CT/CTDEEP/completeSubdailyRecord.RData')
+
+```
 
 
