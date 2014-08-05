@@ -11,8 +11,8 @@ library(DataCombine) # for the slide function
 #setwd('C:/Users/dhocking/Documents/temperatureProject/')
 
 #baseDir <- 'C:/KPONEIL/GitHub/projects/temperatureProject/'
-#baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
-baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
+baseDir <- '/Users/Dan/Documents/Research/Stream_Climate_Change/temperatureProject/'
+#baseDir <- 'C:/Users/dhocking/Documents/temperatureProject/'
 setwd(baseDir)
 
 dataInDir <- paste0(baseDir, 'dataIn/')
@@ -128,7 +128,49 @@ sites <- unique(tempFullSync$site)
 BSite <- modSummary@BSite
 BYear <- modSummary@BYear
 
+#################################
+### Effect of forest
+# simulate coef values
+n.sims=1000
+simCoef <- as.data.frame(fixef(sim(glmm.M35, n.sims=n.sims)))
+names(simCoef) <- names(fixef(glmm.M35))
+
+# Plot effect of catchment forest on occurrence prob at a typical HUC10 basin # Gelman p. 44
+eff.forest <- data.frame(Forest=seq(0,100,length.out=100))
+eff.forest$forest <- as.numeric(stdCovs(eff.forest, tempDataSync, varNames=c("Forest"))$Forest)
+
+UCI <- modSummary@fixEf$UCI
+names(UCI) <- names(fixEf)
+LCI <- modSummary@fixEf$LCI
+names(LCI) <- names(fixEf)
+
+eff.forest$mean <- fixEf["intercept"] + fixEf["forest"]*eff.forest$forest
+eff.forest$lower <- fixEf["intercept"] + LCI["forest"]*eff.forest$forest
+eff.forest$upper <- fixEf["intercept"] + UCI["forest"]*eff.forest$forest
+
+ggplot(eff.forest, aes(x = Forest, y = mean)) + 
+  geom_ribbon(data=eff.forest, aes(ymin = lower, ymax = upper), fill="grey") +
+  geom_line(colour = "black", size = 1) +
+  #labs(title = "Occupancy in CT, MA, NH & NY") +
+  xlab("Percent forest cover upstream") +
+  ylab("Stream temperature (C)") +
+  theme_bw() + 
+  ylim(15, 25) +
+  theme(axis.text.y = element_text(size=15),
+        axis.text.x = element_text(size=15),
+        axis.title.x = element_text(size=17, face="bold"),
+        axis.title.y = element_text(size=17, angle=90, face="bold"),
+        plot.title = element_text(size=20))
+
+
+##########################
+
+
 tempFullSyncS$cYear <- as.character(tempFullSyncS$year)
+
+
+
+
 
 
 # Split data by site-year then do predictions for those with observed stream temperature data and those without, then recombine. The problem is that sites outside of the years observed won't get the site-specific values and years with data but at different sites won't get the site-specific data.
@@ -209,6 +251,53 @@ for(i in 1:length(unique(tempFull$site))){
     theme(axis.text.x = element_text(angle = 45))
   ggsave(filename=paste0(dataLocalDir,'/', 'plots/fullRecord/', dataSite$site[i], '.png'), plot=foo, dpi=300 , width=12,height=8, units='in' )
 } # surprisingly fast but wouldn't do for all catchments
+
+yearPredict <- filter(tempFull, site == "MADEP_W0989_T1", year == "2005")
+dataSiteObs <- filter(tempDataSync, filter = site == "MADEP_W0989_T1")
+foo <- ggplot(yearPredict, aes(dOY, tempPredicted)) + 
+  coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) +
+  geom_point(aes(dOY, airTemp), colour = 'red') + 
+  geom_point(data=dataSiteObs, aes(dOY, temp), colour='black') +
+  #geom_point(colour = 'red', size=1) + 
+  #geom_line(colour = 'red', size=0.1) + 
+  #ggtitle(dataSite$site[i]) + 
+  facet_wrap(~year) + 
+  xlab(label = 'Day of the year') + ylab('Temperature (C)') + 
+  theme(axis.text.x = element_text(angle = 45))
+ggsave(filename=paste0(baseDir, "presentations/yearTemp.png"), plot=foo, dpi=300, width=12, height=8, units="in")
+
+plotPredict <- function(observed, predicted, siteList = "ALL", yearList = "ALL", dir){ # add option to not include predicted or make similar function that makes observation plots
+  if(siteList == "ALL"){
+    sites <- unique(as.character(predicted$site))
+  } else {
+    sites <- siteList
+  }
+  if(yearList == "ALL"){
+    years <- unique(as.character(predicted$year))
+  } else {
+    years <- yearList
+  }
+  
+  for(i in 1:length(unique(sites))){
+    dataSite <- filter(predicted, filter = site == sites[i], year == years)
+    dataSiteObs <- filter(observed, filter = site == sites[i], year == years)
+    foo <- ggplot(dataSite, aes(dOY, tempPredicted)) + 
+      coord_cartesian(xlim = c(100, 300), ylim = c(0, 35)) + 
+      geom_point(data=dataSiteObs, aes(dOY, temp), colour='black') +
+      geom_point(colour = 'blue') + 
+      geom_line(colour = 'blue') + 
+      geom_point(aes(dOY, airTemp), colour = 'red') + 
+      ggtitle(dataSite$site[i]) + 
+      facet_wrap(~year) + 
+      xlab(label = 'Day of the year') + ylab('Temperature (C)') + 
+      theme(axis.text.x = element_text(angle = 45))
+    ggsave(filename=paste0(dir, dataSite$site[i], '.png'), plot=foo, dpi=300 , width=12,height=8, units='in' )
+  } # surprisingly fast but wouldn't do for all catchments
+}
+
+plotPredict(observed = tempDataSync, predicted = tempFull, siteList = "ALL", yearList = "ALL", dir = paste0(dataLocalDir,'/', 'plots/fullRecord/', dataSite$site[i], '.png'))
+
+paste0(dataLocalDir,'/', 'plots/fullRecord/', dataSite$site[i], '.png')
 
 yearPredict <- filter(tempFull, site == "MADEP_W0989_T1", year == "2005")
 dataSiteObs <- filter(tempDataSync, filter = site == "MADEP_W0989_T1")
