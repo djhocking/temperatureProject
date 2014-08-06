@@ -303,10 +303,10 @@ yearPredict <- filter(tempFull, site == "MADEP_W0989_T1", year == "2005")
 dataSiteObs <- filter(tempDataSync, filter = site == "MADEP_W0989_T1")
 foo <- ggplot(yearPredict, aes(dOY, tempPredicted)) + 
   coord_cartesian(xlim = c(50, 350), ylim = c(0, 30)) + 
-  geom_point(data=dataSiteObs, aes(dOY, temp), colour='blue') +
-  geom_point(colour = 'red', size=1) + 
-  geom_line(colour = 'red', size=0.1) + 
-  geom_point(aes(dOY, airTemp), size=1) + 
+  geom_point(data=dataSiteObs, aes(dOY, temp), colour = 'black') +
+  geom_point(colour = 'blue') + 
+  geom_line(colour = 'blue', size=0.2) + 
+  geom_point(aes(dOY, airTemp), colour = 'red') + 
   #ggtitle(dataSite$site[i]) + 
   facet_wrap(~year) + 
   xlab(label = 'Day of the year') + ylab('Temperature (C)') + 
@@ -318,10 +318,10 @@ yearPredict <- filter(tempFull, site == "MADEP_W0989_T1", year > 2001 & year <= 
 dataSiteObs <- filter(tempDataSync, filter = site == "MADEP_W0989_T1")
 foo <- ggplot(yearPredict, aes(dOY, tempPredicted)) + 
   coord_cartesian(xlim = c(100, 300), ylim = c(0, 30)) + 
-  geom_point(data=dataSiteObs, aes(dOY, temp), colour='blue') +
-  geom_point(colour = 'red', size=1) + 
-  geom_line(colour = 'red', size=0.1) + 
-  geom_point(aes(dOY, airTemp), size=1) + 
+  geom_point(data=dataSiteObs, aes(dOY, temp), colour='black') +
+  geom_point(colour = 'blue', size=1) + 
+  geom_line(colour = 'blue', size=0.1) + 
+  geom_point(aes(dOY, airTemp), size=1, colour='red') + 
   #ggtitle(dataSite$site[i]) + 
   facet_wrap(~year) + 
   xlab(label = 'Day of the year') + ylab('Temperature (C)') + 
